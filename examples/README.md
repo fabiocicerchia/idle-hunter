@@ -1,6 +1,7 @@
 # Examples
 
-Runnable, self-contained examples. Each subfolder (or file) should run with a
-single command and show one clear use case.
+- [`basic/`](basic) — `review.sh`, which turns a scan into a cleanup script
+  with a snapshot before every volume delete, for a human to read and run.
 
-- `basic/` — minimal end-to-end example.
+Nothing in `examples/` executes an AWS mutation. That is the same rule the tool
+follows, and the examples are not the place to break it.

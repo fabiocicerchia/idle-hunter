@@ -8,16 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-### Changed
-### Deprecated
-### Removed
-### Fixed
-### Security
 
-## [0.1.0] - YYYY-MM-DD
+- AWS zombie-resource scan for unattached EBS volumes, unassociated Elastic
+  IPs and empty load balancers, each with a confidence score and a monthly
+  cost estimate. `--commands` prints the AWS CLI calls; nothing is deleted.
 
-### Added
-- Initial release.
-
-[Unreleased]: https://github.com/fabiocicerchia/idle-hunter/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/fabiocicerchia/idle-hunter/releases/tag/v0.1.0
+Not yet released.

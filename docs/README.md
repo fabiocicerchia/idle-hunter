@@ -1,6 +1,9 @@
 # Documentation
 
-- [Architecture](architecture.md) — high-level design and components.
-- [Getting Started](getting-started.md) — setup and first run.
+- [Getting Started](getting-started.md) — the read-only IAM policy, the first
+  scan, and how to read a confidence score.
+- [Architecture](architecture.md) — why there is no delete path, why nothing
+  scores 100, and why the cost estimates are not your costs.
 
-Add pages here as the project grows (API reference, guides, ADRs).
+The [README](../README.md) is the short version. These pages cover running it
+against a real account and deciding what to act on.

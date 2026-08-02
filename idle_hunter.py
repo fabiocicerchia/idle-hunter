@@ -98,8 +98,8 @@ def render(findings, min_confidence=0, show_commands=False):
     total = sum(f["monthly_usd"] for f in rows)
     lines = [f"# idle-hunter report — {len(rows)} finding(s), ~${total:,.0f}/mo reclaimable\n"]
     for f in rows:
-        lines.append(f"[{f['confidence']:3d}%] {f['kind']:availability<0} " if False else
-                     f"[{f['confidence']:3d}%] {f['kind']}  {f['id']}  ({f['region']})  ~${f['monthly_usd']}/mo")
+        lines.append(f"[{f['confidence']:3d}%] {f['kind']}  {f['id']}  "
+                     f"({f['region']})  ~${f['monthly_usd']}/mo")
         lines.append(f"       {f['note']}")
         if show_commands and f.get("command"):
             lines.append(f"       $ {f['command']}")
