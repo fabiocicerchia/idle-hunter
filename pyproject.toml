@@ -7,7 +7,7 @@ name = "idle-hunter"
 version = "0.1.0"
 description = "Zombie-resource scanner with a confidence-to-delete score"
 readme = "README.md"
-license = { text = "MIT" }
+license = { text = "Apache-2.0" }
 authors = [{ name = "Fabio Cicerchia" }]
 requires-python = ">=3.10"
 dependencies = ["boto3>=1.34"]
