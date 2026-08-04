@@ -4,19 +4,30 @@ One module, `idle_hunter.py`, with a hard line through the middle of it:
 the half that talks to AWS, and the half that decides what a finding is worth.
 
 ```
-scan_region(region)          ← the only code that calls boto3
-    ec2.describe_volumes(status=available)
-    ec2.describe_addresses()
-    elbv2.describe_load_balancers → target_groups → target_health
+scan_region(region)               ← builds the clients, fans out to the _scan_* half
+    _scan_volumes                   describe_volumes         (also: the live-volume id set)
+    _scan_eips                      describe_addresses
+    _scan_load_balancers            describe_load_balancers → target_groups → target_health
+    _scan_nat_gateways              describe_nat_gateways    + cw_sum(BytesOutToDestination)
+    _scan_images                    describe_images/instances (also: the AMI-backing snapshots)
+    _scan_snapshots                 describe_snapshots
+        │   ← the _scan_* functions are the only code that calls boto3
         │
-        └── score_*(resource)     ← pure functions, no AWS, no clock beyond now()
+        └── score_*(resource, signal)  ← pure functions, no AWS, no clock beyond now()
               │
-              └── finding(...)    ← a dict: kind, id, region, confidence,
-                                    monthly_usd, note, command
+              └── finding(...)      ← a dict: kind, id, region, confidence,
+                                      monthly_usd, note, command.
+                                      Applies the IaC-managed penalty, in one place.
                     │
-                    └── render()  ← sorts, filters, formats. Prints commands;
-                                    never runs one.
+                    └── render()    ← sorts, filters, formats. Prints commands;
+                                      never runs one.
 ```
+
+Two of the checks hand something to a later one, which is why the call order in
+`scan_region` is not alphabetical: volumes produce the set of volume ids that
+still exist (a snapshot is only orphaned if its source is *not* in it), and
+images produce the snapshot ids an AMI still backs (those are the AMI's finding,
+not a snapshot finding — reporting both would double-count the same GiB).
 
 ## It never deletes, and that is structural
 
@@ -58,22 +69,56 @@ with the score without re-querying AWS.
 findings. "Not a finding" and "a finding I am unsure about" are the same code
 path, which keeps the caller from having to know the difference.
 
-## The cost estimates are constants, and they are wrong
+## Absent evidence is not evidence
 
-`gb * 0.08` for EBS, `3.6` for an Elastic IP, `18.0` for a load balancer.
-These are rough us-east-1 list prices, not your prices — they ignore region,
-volume type (gp3 vs io2 is not a rounding error), and any discount you have.
+`cw_sum` returns `None` — not `0` — when CloudWatch has no datapoints at all,
+and every score treats `None` as *unknown*: `score_idle_nat` returns 0 rather
+than flagging the gateway, and `score_empty_lb` skips its traffic bonus.
 
-They are there to rank findings and to make "is this worth an afternoon"
-answerable, not to reconcile against a bill. Real pricing via the Pricing API
-is on the roadmap and is the change that would make the totals meaningful.
+The distinction matters because the two cases look identical from the API and
+mean opposite things. A NAT gateway created yesterday, or one in an account
+where the metric is not published, reports nothing — and "nothing" read as
+"idle" is exactly the false positive that gets a production egress path deleted.
+
+## IaC ownership is a penalty, applied once
+
+`finding()` checks the resource's tags for CloudFormation, Terraform, CDK,
+Pulumi and Beanstalk markers, and subtracts 30 (floored at 5, never to 0 —
+it stays visible, just not near the top).
+
+It lives in `finding()` rather than in each `score_*` because every check routes
+through it, so a new check gets the behaviour without knowing it exists. The
+scores stay pure functions of the resource; ownership is a fact about who is
+allowed to delete it, not about how dead it is. And that is the point: deleting
+a Terraform-owned volume by hand does not save the money, it just makes the next
+`apply` recreate it and someone spend an afternoon on the diff.
+
+## The cost estimates are constants until you ask for better
+
+`PRICE_DEFAULTS` holds rough us-east-1 list prices — `0.08`/GiB for EBS, `3.6`
+for an Elastic IP, `18.0` for a load balancer. Not your prices: they ignore
+region, volume type (gp3 vs io2 is not a rounding error), and any discount.
+
+`--live-pricing` swaps them for a Pricing API lookup per `(key, region)`,
+cached in `_PRICE_CACHE` for the process, so `--all-regions` costs one lookup
+per price per region and no more. Every check reaches prices through the same
+`price_of` partial, so a check does not know or care which mode it is in.
+
+The lookup is deliberately failure-tolerant: a missing `pricing:GetProducts`,
+or a product shape the filters do not match, falls back to the constant instead
+of raising. A scan that dies because it could not price a volume it correctly
+found is a worse tool than one that prints an approximate number. Discounts are
+still invisible — nothing public knows them — so the totals get closer to the
+bill without ever being it.
 
 ## Where the API cost is
 
-`describe_volumes` and `describe_addresses` are one call each. Load balancers
-are **not**: it is one call per LB for its target groups, then one per target
-group for health. On an account with many load balancers, `--all-regions` is
-where the time goes.
+Most checks are one paginated call per region. Load balancers are **not**: it is
+one call per LB for its target groups, then one per target group for health, and
+one `describe_tags` per LB that turns out to be a finding (tags do not come back
+with the LB). NAT gateways and empty LBs each add a CloudWatch
+`get_metric_statistics`. On an account with many load balancers, `--all-regions`
+is where the time goes.
 
 `--all-regions` enumerates regions via `describe_regions` and scans each
 serially. It is the honest implementation and it is slow; that is a known
@@ -82,10 +127,13 @@ ceiling, not a subtlety.
 ## Adding a check
 
 1. A `score_*` pure function next to the others. It takes the AWS response
-   shape and returns 0–100, with a cap below 100 and a docstring stating the
-   rule in one line.
-2. A block in `scan_region` that queries and appends `finding(...)` — including
-   the `command`, which must be the exact CLI call a reviewer would run.
+   shape (plus any CloudWatch signal, where `None` must mean *unknown*) and
+   returns 0–100, with a cap below 100 and a docstring stating the rule in one
+   line.
+2. A `_scan_*` function that queries and appends `finding(...)` — including the
+   `command`, which must be the exact CLI call a reviewer would run, and the
+   resource's tags, which is how it inherits the IaC penalty for free. Call it
+   from `scan_region`.
 3. A test in `tests/` for the scoring function. The AWS half is not unit-tested
    and does not need to be; the scoring is the part with an opinion in it.
 

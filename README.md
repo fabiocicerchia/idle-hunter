@@ -1,8 +1,9 @@
 # idle-hunter
 
 A **zombie-resource scanner** for AWS: unattached EBS volumes, unassociated
-Elastic IPs, load balancers with zero targets — each with a
-**confidence-to-delete score (0–100)** and the monthly cost you'd reclaim.
+Elastic IPs, load balancers with zero targets, idle NAT gateways, orphaned
+snapshots and unused AMIs — each with a **confidence-to-delete score (0–100)**
+and the monthly cost you'd reclaim.
 
 It never deletes anything. `--commands` prints ready-to-review AWS CLI
 commands; running them is on you, by design.
@@ -24,23 +25,31 @@ Deterministic and explainable — e.g. an unattached volume starts at 50,
 gains +5 per week unattached (capped) and +10 if unnamed, capped at 95:
 there is deliberately no 100, because a scanner can't know your intent.
 
+Resources tagged as owned by CloudFormation, Terraform, CDK or Beanstalk score
+30 lower: deleting those by hand just gets reverted on the next apply.
+
 ## Usage
 
 ```sh
 pipx install .
 idle-hunter scan --region eu-west-1
-idle-hunter scan --all-regions --json > findings.json    # for dashboards
+idle-hunter scan --region eu-west-1 --live-pricing          # real prices, not estimates
+idle-hunter scan --all-regions --json > findings.json       # for dashboards
 ```
 
-IAM: read-only (`ec2:Describe*`, `elasticloadbalancing:Describe*`).
+IAM: read-only (`ec2:Describe*`, `elasticloadbalancing:Describe*`,
+`cloudwatch:GetMetricStatistics`, plus `pricing:GetProducts` for
+`--live-pricing`).
 
 ## Status & roadmap
 
 - [x] EBS volumes, EIPs, empty LBs with scores + costs
-- [ ] Idle NAT gateways (CloudWatch bytes), stale snapshots, unused AMIs
-- [ ] CloudWatch-based "no I/O in 90d" signals to push scores higher
-- [ ] Terraform/CloudFormation ownership detection (managed = lower score)
-- [ ] Real pricing via the Pricing API instead of built-in estimates
+- [x] Idle NAT gateways (CloudWatch bytes), stale snapshots, unused AMIs
+- [x] CloudWatch traffic signals to push scores higher
+- [x] Terraform/CloudFormation ownership detection (managed = lower score)
+- [x] Real pricing via the Pricing API (`--live-pricing`) instead of estimates
+- [ ] Idle RDS instances and unattached ENIs
+- [ ] Parallel `--all-regions` (today it is serial)
 
 ## Development
 

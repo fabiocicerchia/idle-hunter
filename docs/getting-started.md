@@ -30,14 +30,23 @@ Read-only. Attach this and nothing more:
       "ec2:DescribeVolumes",
       "ec2:DescribeAddresses",
       "ec2:DescribeRegions",
+      "ec2:DescribeNatGateways",
+      "ec2:DescribeSnapshots",
+      "ec2:DescribeImages",
+      "ec2:DescribeInstances",
       "elasticloadbalancing:DescribeLoadBalancers",
       "elasticloadbalancing:DescribeTargetGroups",
-      "elasticloadbalancing:DescribeTargetHealth"
+      "elasticloadbalancing:DescribeTargetHealth",
+      "elasticloadbalancing:DescribeTags",
+      "cloudwatch:GetMetricStatistics"
     ],
     "Resource": "*"
   }]
 }
 ```
+
+Add `"pricing:GetProducts"` only if you use `--live-pricing`. Without it the
+lookup fails quietly and the built-in estimates are used instead.
 
 There is no delete path in the tool, so there is no reason for the credentials
 to have one. Running this with an admin role gives up the one guarantee it
@@ -92,7 +101,15 @@ The scores are deterministic and small enough to check by hand:
 |---|---|
 | `ebs-unattached` | 50 base, +5 per week unattached (cap +35), +10 if it has no `Name` tag, capped at 95 |
 | `eip-unassociated` | flat 90 — it costs money and has no state to lose |
-| `elb-no-targets` | 85 if older than 30 days, 60 if newer; 0 (not reported) if it has targets |
+| `elb-no-targets` | 85 if older than 30 days, 60 if newer, +10 if CloudWatch saw no bytes in 30 days; 0 (not reported) if it has targets |
+| `nat-idle` | 85 at exactly zero bytes out in 30 days, 65 under 10 MiB, 0 above that |
+| `snapshot-orphaned` | 45 base, +5 per 30 days, capped 80; 0 if the source volume still exists |
+| `ami-unused` | 40 base, +5 per 30 days, capped 75; 0 if any non-terminated instance runs it |
+
+Then, for every kind: **−30 if the resource is tagged as IaC-managed**
+(`aws:cloudformation:*`, `terraform*`, `managed-by: cdk`, Beanstalk, …).
+Deleting one of those by hand does not fix anything — the next `apply` puts it
+back — so it belongs at the bottom of the report, not the top.
 
 **Nothing ever scores 100.** The cap is deliberate: a scanner cannot know your
 intent, and a number that reads as "certain" invites automation this tool does
@@ -101,15 +118,20 @@ not want to enable.
 An unnamed volume scoring higher than a named one is the strongest signal here.
 Resources someone cared about get tagged.
 
+**No CloudWatch data is not the same as no traffic.** A NAT gateway or LB with
+zero datapoints — too new, or not publishing the metric — scores as unknown,
+never as idle.
+
 ## Scan everything
 
 ```sh
 idle-hunter scan --all-regions --min-confidence 80
 ```
 
-Expect it to take a while. Volumes and Elastic IPs are one API call per region;
-load balancers are one call per LB plus one per target group, so an account
-with many of them dominates the runtime.
+Expect it to take a while. Volumes, Elastic IPs, snapshots, AMIs and NAT
+gateways are one (paginated) call per region; load balancers are one call per LB
+plus one per target group, and NAT gateways and empty LBs each add a CloudWatch
+query, so an account with many of them dominates the runtime.
 
 ## Feed it to something else
 
@@ -118,18 +140,28 @@ idle-hunter scan --all-regions --json > findings.json
 ```
 
 The JSON has the full finding — `kind`, `id`, `region`, `confidence`,
-`monthly_usd`, `note`, `command` — and is unfiltered by `--min-confidence`
-formatting, so downstream can apply its own threshold.
+`monthly_usd`, `note`, `command`. `--min-confidence` applies to it exactly as it
+does to the report (the default, 0, keeps everything), so anything generating a
+script from this output cannot end up with entries you asked to filter out.
 
-## The costs are estimates, and not yours
+## The costs are estimates by default
 
-`$0.08/GiB` for EBS, `$3.60` for an Elastic IP, `$18` for a load balancer.
-Rough us-east-1 list prices, ignoring region, volume type and any discount you
-have negotiated.
+`$0.08/GiB` for EBS, `$0.05/GiB` for snapshots, `$3.60` for an Elastic IP,
+`$18` for a load balancer, `$32.90` for a NAT gateway. Rough us-east-1 list
+prices, ignoring region, volume type and any discount you have negotiated.
 
-Use them to rank findings and to decide whether the cleanup is worth an
-afternoon. Do not put the total in a document that will be compared against a
-bill. Real pricing is on the roadmap.
+```sh
+idle-hunter scan --region eu-west-1 --live-pricing
+```
+
+looks the real ones up through the Pricing API for that region instead, cached
+per region per run. It still ignores your negotiated discounts — nothing public
+knows those — so the totals get closer to your bill without ever being it. If
+the lookup fails (no `pricing:GetProducts`, or a shape the filters miss), that
+line silently keeps its estimate.
+
+Use the numbers to rank findings and to decide whether the cleanup is worth an
+afternoon, not to reconcile against a bill.
 
 ## Development
 
