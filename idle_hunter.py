@@ -50,14 +50,16 @@ def finding(kind, rid, region, score, monthly_usd, note, command=None):
             "monthly_usd": round(monthly_usd, 2), "note": note, "command": command}
 
 
-def scan_region(region, session=None):
-    import boto3
-    session = session or boto3.Session()
-    ec2 = session.client("ec2", region_name=region)
-    findings = []
+# --- the AWS half -----------------------------------------------------------
+def _pages(client, op, key, **kwargs):
+    for page in client.get_paginator(op).paginate(**kwargs):
+        yield from page[key]
 
-    for vol in ec2.describe_volumes(
-            Filters=[{"Name": "status", "Values": ["available"]}])["Volumes"]:
+
+def _scan_volumes(ec2, region):
+    findings = []
+    for vol in _pages(ec2, "describe_volumes", "Volumes",
+                      Filters=[{"Name": "status", "Values": ["available"]}]):
         gb = vol["Size"]
         findings.append(finding(
             "ebs-unattached", vol["VolumeId"], region,
@@ -65,31 +67,49 @@ def scan_region(region, session=None):
             f"{gb} GiB, created {age_days(vol['CreateTime'])}d ago, status=available",
             f"aws ec2 delete-volume --region {region} --volume-id {vol['VolumeId']}",
         ))
+    return findings
 
-    for addr in ec2.describe_addresses()["Addresses"]:
-        if "AssociationId" not in addr:
-            findings.append(finding(
-                "eip-unassociated", addr.get("AllocationId", addr.get("PublicIp", "?")), region,
-                score_unassociated_eip(addr), 3.6,
-                f"elastic IP {addr.get('PublicIp')} not associated",
-                f"aws ec2 release-address --region {region} --allocation-id {addr.get('AllocationId')}",
-            ))
 
-    elb = session.client("elbv2", region_name=region)
-    for lb in elb.describe_load_balancers()["LoadBalancers"]:
+def _scan_eips(ec2, region):
+    return [
+        finding(
+            "eip-unassociated", addr.get("AllocationId", addr.get("PublicIp", "?")), region,
+            score_unassociated_eip(addr), 3.6,
+            f"elastic IP {addr.get('PublicIp')} not associated",
+            f"aws ec2 release-address --region {region} --allocation-id {addr.get('AllocationId')}",
+        )
+        for addr in ec2.describe_addresses()["Addresses"] if "AssociationId" not in addr
+    ]
+
+
+def _scan_load_balancers(elb, region):
+    findings = []
+    for lb in _pages(elb, "describe_load_balancers", "LoadBalancers"):
         targets = 0
         for tg in elb.describe_target_groups(
                 LoadBalancerArn=lb["LoadBalancerArn"])["TargetGroups"]:
             targets += len(elb.describe_target_health(
                 TargetGroupArn=tg["TargetGroupArn"])["TargetHealthDescriptions"])
-        s = score_empty_lb(lb, targets)
-        if s:
+        score = score_empty_lb(lb, targets)
+        if score:
             findings.append(finding(
-                "elb-no-targets", lb["LoadBalancerName"], region, s, 18.0,
+                "elb-no-targets", lb["LoadBalancerName"], region, score, 18.0,
                 f"{lb['Type']} LB with 0 registered targets",
-                f"aws elbv2 delete-load-balancer --region {region} --load-balancer-arn {lb['LoadBalancerArn']}",
+                f"aws elbv2 delete-load-balancer --region {region} "
+                f"--load-balancer-arn {lb['LoadBalancerArn']}",
             ))
     return findings
+
+
+def scan_region(region, session=None):
+    import boto3
+    session = session or boto3.Session()
+    ec2 = session.client("ec2", region_name=region)
+    elb = session.client("elbv2", region_name=region)
+
+    return (_scan_volumes(ec2, region)
+            + _scan_eips(ec2, region)
+            + _scan_load_balancers(elb, region))
 
 
 def render(findings, min_confidence=0, show_commands=False):
