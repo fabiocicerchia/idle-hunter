@@ -17,6 +17,7 @@ import argparse
 import json
 import sys
 from datetime import datetime, timezone
+from functools import partial
 
 
 def age_days(created):
@@ -42,6 +43,51 @@ def iac_managed(tags):
             if any(x in val for x in ("terraform", "cloudformation", "cdk", "pulumi", "ansible")):
                 return True
     return False
+
+
+# --- pricing ----------------------------------------------------------------
+# Rough us-east-1 list prices, monthly per unit. Used unless --live-pricing.
+PRICE_DEFAULTS = {"ebs_gb": 0.08, "eip": 3.6, "elb": 18.0}
+
+# key -> (pricing service code, TERM_MATCH filters, months-per-unit multiplier)
+PRICE_QUERIES = {
+    "ebs_gb": ("AmazonEC2", (("productFamily", "Storage"), ("volumeApiName", "gp3")), 1),
+    "eip": ("AmazonEC2", (("productFamily", "IP Address"),), 730),
+    "elb": ("AWSELB", (("productFamily", "Load Balancer-Application"),), 730),
+}
+
+_PRICE_CACHE = {}
+
+
+def _lookup_price(session, service_code, filters):
+    """First positive on-demand USD price matching `filters`, or None."""
+    client = session.client("pricing", region_name="us-east-1")
+    resp = client.get_products(
+        ServiceCode=service_code,
+        Filters=[{"Type": "TERM_MATCH", "Field": k, "Value": v} for k, v in filters],
+        MaxResults=20,
+    )
+    for doc in resp.get("PriceList", []):
+        for term in json.loads(doc).get("terms", {}).get("OnDemand", {}).values():
+            for dim in term.get("priceDimensions", {}).values():
+                price = float(dim.get("pricePerUnit", {}).get("USD", 0))
+                if price > 0:
+                    return price
+    return None
+
+
+def price(key, region, session=None, live=False):
+    """Monthly USD per unit — Pricing API when `live`, else the built-in estimate."""
+    if not live:
+        return PRICE_DEFAULTS[key]
+    if (key, region) not in _PRICE_CACHE:
+        service, filters, months = PRICE_QUERIES[key]
+        try:
+            found = _lookup_price(session, service, filters + (("regionCode", region),))
+        except Exception:  # no pricing:GetProducts, or an unpriced shape — fall back
+            found = None
+        _PRICE_CACHE[(key, region)] = found * months if found else PRICE_DEFAULTS[key]
+    return _PRICE_CACHE[(key, region)]
 
 
 def score_unattached_volume(vol):
@@ -78,14 +124,14 @@ def _pages(client, op, key, **kwargs):
         yield from page[key]
 
 
-def _scan_volumes(ec2, region):
+def _scan_volumes(ec2, region, price_of):
     findings = []
     for vol in _pages(ec2, "describe_volumes", "Volumes",
                       Filters=[{"Name": "status", "Values": ["available"]}]):
         gb = vol["Size"]
         findings.append(finding(
             "ebs-unattached", vol["VolumeId"], region,
-            score_unattached_volume(vol), gb * 0.08,
+            score_unattached_volume(vol), gb * price_of("ebs_gb"),
             f"{gb} GiB, created {age_days(vol['CreateTime'])}d ago, status=available",
             f"aws ec2 delete-volume --region {region} --volume-id {vol['VolumeId']}",
             vol.get("Tags"),
@@ -93,11 +139,11 @@ def _scan_volumes(ec2, region):
     return findings
 
 
-def _scan_eips(ec2, region):
+def _scan_eips(ec2, region, price_of):
     return [
         finding(
             "eip-unassociated", addr.get("AllocationId", addr.get("PublicIp", "?")), region,
-            score_unassociated_eip(addr), 3.6,
+            score_unassociated_eip(addr), price_of("eip"),
             f"elastic IP {addr.get('PublicIp')} not associated",
             f"aws ec2 release-address --region {region} --allocation-id {addr.get('AllocationId')}",
             addr.get("Tags"),
@@ -106,7 +152,7 @@ def _scan_eips(ec2, region):
     ]
 
 
-def _scan_load_balancers(elb, region):
+def _scan_load_balancers(elb, region, price_of):
     findings = []
     for lb in _pages(elb, "describe_load_balancers", "LoadBalancers"):
         targets = 0
@@ -119,7 +165,7 @@ def _scan_load_balancers(elb, region):
             tags = elb.describe_tags(  # not in describe_load_balancers; only fetched for findings
                 ResourceArns=[lb["LoadBalancerArn"]])["TagDescriptions"][0]["Tags"]
             findings.append(finding(
-                "elb-no-targets", lb["LoadBalancerName"], region, score, 18.0,
+                "elb-no-targets", lb["LoadBalancerName"], region, score, price_of("elb"),
                 f"{lb['Type']} LB with 0 registered targets",
                 f"aws elbv2 delete-load-balancer --region {region} "
                 f"--load-balancer-arn {lb['LoadBalancerArn']}",
@@ -128,15 +174,16 @@ def _scan_load_balancers(elb, region):
     return findings
 
 
-def scan_region(region, session=None):
+def scan_region(region, session=None, live_pricing=False):
     import boto3
     session = session or boto3.Session()
     ec2 = session.client("ec2", region_name=region)
     elb = session.client("elbv2", region_name=region)
+    price_of = partial(price, region=region, session=session, live=live_pricing)
 
-    return (_scan_volumes(ec2, region)
-            + _scan_eips(ec2, region)
-            + _scan_load_balancers(elb, region))
+    return (_scan_volumes(ec2, region, price_of)
+            + _scan_eips(ec2, region, price_of)
+            + _scan_load_balancers(elb, region, price_of))
 
 
 def render(findings, min_confidence=0, show_commands=False):
@@ -162,6 +209,8 @@ def main(argv=None):
     s.add_argument("--all-regions", action="store_true")
     s.add_argument("--min-confidence", type=int, default=0)
     s.add_argument("--commands", action="store_true", help="print deletion commands (never executed)")
+    s.add_argument("--live-pricing", action="store_true",
+                   help="look up real prices via the Pricing API (needs pricing:GetProducts)")
     s.add_argument("--json", action="store_true")
     args = p.parse_args(argv)
 
@@ -174,7 +223,7 @@ def main(argv=None):
 
     findings = []
     for region in regions:
-        findings.extend(scan_region(region, session))
+        findings.extend(scan_region(region, session, args.live_pricing))
 
     if args.json:
         json.dump(findings, sys.stdout, indent=2, default=str)

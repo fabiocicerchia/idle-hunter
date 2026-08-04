@@ -3,6 +3,7 @@ from datetime import datetime, timedelta, timezone
 from idle_hunter import (
     finding,
     iac_managed,
+    price,
     render,
     score_empty_lb,
     score_unattached_volume,
@@ -33,6 +34,16 @@ def test_iac_managed_tags_lower_the_score():
     f = finding("ebs-unattached", "vol-1", "eu-west-1", 90, 8.0, "n",
                 tags=[{"Key": "terraform:module", "Value": "vpc"}])
     assert f["confidence"] == 60 and "IaC-managed" in f["note"]
+
+
+def test_price_falls_back_to_estimates_without_live_lookup():
+    assert price("elb", "eu-west-1") == 18.0
+
+    class Boom:
+        def client(self, *a, **k):
+            raise RuntimeError("no pricing:GetProducts")
+
+    assert price("elb", "eu-west-1", session=Boom(), live=True) == 18.0
 
 
 def test_render_sorts_and_filters():
