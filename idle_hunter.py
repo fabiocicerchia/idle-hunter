@@ -25,6 +25,25 @@ def age_days(created):
     return (datetime.now(timezone.utc) - created).days
 
 
+# --- IaC ownership ----------------------------------------------------------
+IAC_PENALTY = 30
+
+
+def iac_managed(tags):
+    """True if tags say a stack owns this — deleting it by hand just gets reverted."""
+    for t in tags or []:
+        key = t.get("Key", "").lower()
+        val = str(t.get("Value", "")).lower()
+        if key.startswith(("aws:cloudformation:", "elasticbeanstalk:", "eks:", "kubernetes.io/")):
+            return True
+        if "terraform" in key or "pulumi" in key or key.startswith("cdk"):
+            return True
+        if key.replace("_", "-") in ("managed-by", "provisioner", "iac", "created-by"):
+            if any(x in val for x in ("terraform", "cloudformation", "cdk", "pulumi", "ansible")):
+                return True
+    return False
+
+
 def score_unattached_volume(vol):
     """Unattached EBS volume: base 50, +age, +unnamed, capped 95."""
     score = 50
@@ -45,7 +64,10 @@ def score_empty_lb(lb, target_count):
     return 85 if age_days(lb["CreatedTime"]) > 30 else 60
 
 
-def finding(kind, rid, region, score, monthly_usd, note, command=None):
+def finding(kind, rid, region, score, monthly_usd, note, command=None, tags=None):
+    if iac_managed(tags):
+        score = max(score - IAC_PENALTY, 5)
+        note += " — IaC-managed (delete via the stack, not the CLI)"
     return {"kind": kind, "id": rid, "region": region, "confidence": score,
             "monthly_usd": round(monthly_usd, 2), "note": note, "command": command}
 
@@ -66,6 +88,7 @@ def _scan_volumes(ec2, region):
             score_unattached_volume(vol), gb * 0.08,
             f"{gb} GiB, created {age_days(vol['CreateTime'])}d ago, status=available",
             f"aws ec2 delete-volume --region {region} --volume-id {vol['VolumeId']}",
+            vol.get("Tags"),
         ))
     return findings
 
@@ -77,6 +100,7 @@ def _scan_eips(ec2, region):
             score_unassociated_eip(addr), 3.6,
             f"elastic IP {addr.get('PublicIp')} not associated",
             f"aws ec2 release-address --region {region} --allocation-id {addr.get('AllocationId')}",
+            addr.get("Tags"),
         )
         for addr in ec2.describe_addresses()["Addresses"] if "AssociationId" not in addr
     ]
@@ -92,11 +116,14 @@ def _scan_load_balancers(elb, region):
                 TargetGroupArn=tg["TargetGroupArn"])["TargetHealthDescriptions"])
         score = score_empty_lb(lb, targets)
         if score:
+            tags = elb.describe_tags(  # not in describe_load_balancers; only fetched for findings
+                ResourceArns=[lb["LoadBalancerArn"]])["TagDescriptions"][0]["Tags"]
             findings.append(finding(
                 "elb-no-targets", lb["LoadBalancerName"], region, score, 18.0,
                 f"{lb['Type']} LB with 0 registered targets",
                 f"aws elbv2 delete-load-balancer --region {region} "
                 f"--load-balancer-arn {lb['LoadBalancerArn']}",
+                tags,
             ))
     return findings
 
