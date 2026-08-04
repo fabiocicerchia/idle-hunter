@@ -319,7 +319,7 @@ def scan_region(region, session=None, live_pricing=False):
 
 
 def render(findings, min_confidence=0, show_commands=False):
-    rows = [f for f in findings if f["confidence"] >= min_confidence]
+    rows = [f for f in findings if f["confidence"] >= max(min_confidence, 1)]
     rows.sort(key=lambda f: (-f["confidence"], -f["monthly_usd"]))
     total = sum(f["monthly_usd"] for f in rows)
     lines = [f"# idle-hunter report — {len(rows)} finding(s), ~${total:,.0f}/mo reclaimable\n"]
@@ -358,7 +358,10 @@ def main(argv=None):
         findings.extend(scan_region(region, session, args.live_pricing))
 
     if args.json:
-        json.dump(findings, sys.stdout, indent=2, default=str)
+        # --min-confidence applies here too: a script generated from this output
+        # must not contain deletes the caller asked to be filtered out.
+        json.dump([f for f in findings if f["confidence"] >= args.min_confidence],
+                  sys.stdout, indent=2, default=str)
     else:
         print(render(findings, args.min_confidence, args.commands))
     return 0
