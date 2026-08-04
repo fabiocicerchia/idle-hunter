@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 """idle-hunter — find zombie AWS resources with a confidence-to-delete score.
 
-Checks (initial set):
+Checks:
   * unattached EBS volumes           (age-weighted)
   * unassociated Elastic IPs
-  * load balancers with no targets
-  * old EBS/RDS snapshots of deleted sources
+  * load balancers with no targets   (CloudWatch-confirmed idle)
+  * idle NAT gateways                (CloudWatch bytes)
+  * snapshots whose source volume is gone
+  * self-owned AMIs no instance uses
 
 Every finding gets a 0-100 confidence score; nothing is ever deleted — the
 output is a report (optionally with ready-to-review `aws` CLI commands).
@@ -47,11 +49,12 @@ def iac_managed(tags):
 
 # --- pricing ----------------------------------------------------------------
 # Rough us-east-1 list prices, monthly per unit. Used unless --live-pricing.
-PRICE_DEFAULTS = {"ebs_gb": 0.08, "eip": 3.6, "elb": 18.0, "nat": 32.9}
+PRICE_DEFAULTS = {"ebs_gb": 0.08, "snapshot_gb": 0.05, "eip": 3.6, "elb": 18.0, "nat": 32.9}
 
 # key -> (pricing service code, TERM_MATCH filters, months-per-unit multiplier)
 PRICE_QUERIES = {
     "ebs_gb": ("AmazonEC2", (("productFamily", "Storage"), ("volumeApiName", "gp3")), 1),
+    "snapshot_gb": ("AmazonEC2", (("productFamily", "Storage Snapshot"),), 1),
     "eip": ("AmazonEC2", (("productFamily", "IP Address"),), 730),
     "elb": ("AWSELB", (("productFamily", "Load Balancer-Application"),), 730),
     "nat": ("AmazonEC2", (("productFamily", "NAT Gateway"),), 730),
@@ -144,6 +147,20 @@ def score_idle_nat(_nat, bytes_30d):
     return 85 if bytes_30d == 0 else 65
 
 
+def score_stale_snapshot(snap, source_exists):
+    """Snapshot whose source volume is gone: base 45, +5 per 30d, capped 80."""
+    if source_exists:
+        return 0
+    return min(45 + age_days(snap["StartTime"]) // 30 * 5, 80)
+
+
+def score_unused_ami(image, in_use):
+    """Self-owned AMI no instance runs: base 40, +5 per 30d, capped 75."""
+    if in_use:
+        return 0
+    return min(40 + age_days(image["CreationDate"]) // 30 * 5, 75)
+
+
 def finding(kind, rid, region, score, monthly_usd, note, command=None, tags=None):
     if iac_managed(tags):
         score = max(score - IAC_PENALTY, 5)
@@ -159,9 +176,12 @@ def _pages(client, op, key, **kwargs):
 
 
 def _scan_volumes(ec2, region, price_of):
-    findings = []
-    for vol in _pages(ec2, "describe_volumes", "Volumes",
-                      Filters=[{"Name": "status", "Values": ["available"]}]):
+    """Unattached volumes, plus the id set every live volume is in (for snapshots)."""
+    findings, live_ids = [], set()
+    for vol in _pages(ec2, "describe_volumes", "Volumes"):
+        live_ids.add(vol["VolumeId"])
+        if vol["Status"] != "available":
+            continue
         gb = vol["Size"]
         findings.append(finding(
             "ebs-unattached", vol["VolumeId"], region,
@@ -170,7 +190,7 @@ def _scan_volumes(ec2, region, price_of):
             f"aws ec2 delete-volume --region {region} --volume-id {vol['VolumeId']}",
             vol.get("Tags"),
         ))
-    return findings
+    return findings, live_ids
 
 
 def _scan_eips(ec2, region, price_of):
@@ -235,6 +255,52 @@ def _scan_nat_gateways(ec2, cw, region, price_of):
     return findings
 
 
+def _scan_images(ec2, region, price_of):
+    """Self-owned AMIs no instance uses, plus the snapshot ids AMIs still back."""
+    in_use = {inst["ImageId"]
+              for res in _pages(ec2, "describe_instances", "Reservations")
+              for inst in res["Instances"] if inst["State"]["Name"] != "terminated"}
+    # ponytail: instances only. AMIs referenced solely by launch templates or ASGs
+    # still read as unused — add those lookups if that produces false positives.
+    findings, ami_snapshots = [], set()
+    for image in _pages(ec2, "describe_images", "Images", Owners=["self"]):
+        gb = 0
+        for bdm in image.get("BlockDeviceMappings", []):
+            ebs = bdm.get("Ebs", {})
+            if "SnapshotId" in ebs:
+                ami_snapshots.add(ebs["SnapshotId"])
+                gb += ebs.get("VolumeSize", 0)
+        score = score_unused_ami(image, image["ImageId"] in in_use)
+        if score:
+            findings.append(finding(
+                "ami-unused", image["ImageId"], region, score, gb * price_of("snapshot_gb"),
+                f"{image.get('Name', 'unnamed')}: no instance uses it, "
+                f"registered {age_days(image['CreationDate'])}d ago, {gb} GiB of snapshots",
+                f"aws ec2 deregister-image --region {region} --image-id {image['ImageId']}",
+                image.get("Tags"),
+            ))
+    return findings, ami_snapshots
+
+
+def _scan_snapshots(ec2, region, price_of, live_volume_ids, ami_snapshots):
+    findings = []
+    for snap in _pages(ec2, "describe_snapshots", "Snapshots", OwnerIds=["self"]):
+        if snap["SnapshotId"] in ami_snapshots:
+            continue  # backing a registered AMI — that AMI is the finding, not this
+        gb = snap.get("VolumeSize", 0)
+        score = score_stale_snapshot(snap, snap.get("VolumeId") in live_volume_ids)
+        if score:
+            findings.append(finding(
+                "snapshot-orphaned", snap["SnapshotId"], region, score,
+                gb * price_of("snapshot_gb"),
+                f"{gb} GiB, source {snap.get('VolumeId', '?')} no longer exists, "
+                f"taken {age_days(snap['StartTime'])}d ago",
+                f"aws ec2 delete-snapshot --region {region} --snapshot-id {snap['SnapshotId']}",
+                snap.get("Tags"),
+            ))
+    return findings
+
+
 def scan_region(region, session=None, live_pricing=False):
     import boto3
     session = session or boto3.Session()
@@ -243,10 +309,13 @@ def scan_region(region, session=None, live_pricing=False):
     cw = session.client("cloudwatch", region_name=region)
     price_of = partial(price, region=region, session=session, live=live_pricing)
 
-    return (_scan_volumes(ec2, region, price_of)
+    volumes, live_volume_ids = _scan_volumes(ec2, region, price_of)
+    images, ami_snapshots = _scan_images(ec2, region, price_of)
+    return (volumes + images
             + _scan_eips(ec2, region, price_of)
             + _scan_load_balancers(elb, cw, region, price_of)
-            + _scan_nat_gateways(ec2, cw, region, price_of))
+            + _scan_nat_gateways(ec2, cw, region, price_of)
+            + _scan_snapshots(ec2, region, price_of, live_volume_ids, ami_snapshots))
 
 
 def render(findings, min_confidence=0, show_commands=False):

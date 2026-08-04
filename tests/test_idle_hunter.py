@@ -8,7 +8,9 @@ from idle_hunter import (
     render,
     score_empty_lb,
     score_idle_nat,
+    score_stale_snapshot,
     score_unattached_volume,
+    score_unused_ami,
 )
 
 
@@ -41,6 +43,16 @@ def test_nat_score_needs_a_metric():
     assert score_idle_nat(nat, 0) == 85
     assert score_idle_nat(nat, NAT_IDLE_BYTES - 1) == 65
     assert score_idle_nat(nat, NAT_IDLE_BYTES + 1) == 0
+
+
+def test_snapshot_and_ami_scores():
+    snap = {"StartTime": days_ago(400)}
+    assert score_stale_snapshot(snap, source_exists=True) == 0
+    assert score_stale_snapshot(snap, source_exists=False) == 80          # capped
+    assert score_stale_snapshot({"StartTime": days_ago(1)}, False) == 45
+    ami = {"CreationDate": "2020-01-01T00:00:00.000Z"}
+    assert score_unused_ami(ami, in_use=True) == 0
+    assert score_unused_ami(ami, in_use=False) == 75                      # capped
 
 
 def test_iac_managed_tags_lower_the_score():
