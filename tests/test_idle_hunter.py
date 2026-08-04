@@ -1,11 +1,13 @@
 from datetime import datetime, timedelta, timezone
 
 from idle_hunter import (
+    NAT_IDLE_BYTES,
     finding,
     iac_managed,
     price,
     render,
     score_empty_lb,
+    score_idle_nat,
     score_unattached_volume,
 )
 
@@ -24,6 +26,21 @@ def test_lb_score_zero_when_targets_exist():
     lb = {"CreatedTime": days_ago(90), "Type": "application"}
     assert score_empty_lb(lb, target_count=3) == 0
     assert score_empty_lb(lb, target_count=0) == 85
+
+
+def test_lb_score_boosted_by_zero_traffic():
+    lb = {"CreatedTime": days_ago(90), "Type": "application"}
+    assert score_empty_lb(lb, 0, bytes_30d=0) == 95
+    assert score_empty_lb(lb, 0, bytes_30d=None) == 85       # unknown ≠ idle
+    assert score_empty_lb(lb, 0, bytes_30d=10_000) == 85
+
+
+def test_nat_score_needs_a_metric():
+    nat = {"CreateTime": days_ago(200)}
+    assert score_idle_nat(nat, None) == 0                    # no datapoints ≠ dead
+    assert score_idle_nat(nat, 0) == 85
+    assert score_idle_nat(nat, NAT_IDLE_BYTES - 1) == 65
+    assert score_idle_nat(nat, NAT_IDLE_BYTES + 1) == 0
 
 
 def test_iac_managed_tags_lower_the_score():

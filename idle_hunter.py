@@ -16,7 +16,7 @@ output is a report (optionally with ready-to-review `aws` CLI commands).
 import argparse
 import json
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from functools import partial
 
 
@@ -47,13 +47,14 @@ def iac_managed(tags):
 
 # --- pricing ----------------------------------------------------------------
 # Rough us-east-1 list prices, monthly per unit. Used unless --live-pricing.
-PRICE_DEFAULTS = {"ebs_gb": 0.08, "eip": 3.6, "elb": 18.0}
+PRICE_DEFAULTS = {"ebs_gb": 0.08, "eip": 3.6, "elb": 18.0, "nat": 32.9}
 
 # key -> (pricing service code, TERM_MATCH filters, months-per-unit multiplier)
 PRICE_QUERIES = {
     "ebs_gb": ("AmazonEC2", (("productFamily", "Storage"), ("volumeApiName", "gp3")), 1),
     "eip": ("AmazonEC2", (("productFamily", "IP Address"),), 730),
     "elb": ("AWSELB", (("productFamily", "Load Balancer-Application"),), 730),
+    "nat": ("AmazonEC2", (("productFamily", "NAT Gateway"),), 730),
 }
 
 _PRICE_CACHE = {}
@@ -90,6 +91,28 @@ def price(key, region, session=None, live=False):
     return _PRICE_CACHE[(key, region)]
 
 
+# --- CloudWatch -------------------------------------------------------------
+def cw_sum(cw, namespace, metric, dimensions, days=30):
+    """Summed metric over `days`, or None when the metric reported nothing at all.
+
+    None means "unknown", not "idle" — a resource with no datapoints may simply
+    predate the metric or not publish it, and must not be scored as dead.
+    """
+    end = datetime.now(timezone.utc)
+    resp = cw.get_metric_statistics(
+        Namespace=namespace, MetricName=metric,
+        Dimensions=[{"Name": k, "Value": v} for k, v in dimensions],
+        StartTime=end - timedelta(days=days), EndTime=end,
+        Period=86400, Statistics=["Sum"],
+    )
+    points = resp.get("Datapoints", [])
+    return sum(p["Sum"] for p in points) if points else None
+
+
+# --- scoring (pure) ---------------------------------------------------------
+NAT_IDLE_BYTES = 10 * 1024 ** 2  # 30d of DNS/health-check noise, not real traffic
+
+
 def score_unattached_volume(vol):
     """Unattached EBS volume: base 50, +age, +unnamed, capped 95."""
     score = 50
@@ -104,10 +127,21 @@ def score_unassociated_eip(_addr):
     return 90  # unassociated EIPs cost money and have no state to lose
 
 
-def score_empty_lb(lb, target_count):
+def score_empty_lb(lb, target_count, bytes_30d=None):
+    """LB with no targets: 85 over 30d old else 60, +10 if CloudWatch confirms no traffic."""
     if target_count > 0:
         return 0
-    return 85 if age_days(lb["CreatedTime"]) > 30 else 60
+    score = 85 if age_days(lb["CreatedTime"]) > 30 else 60
+    if bytes_30d == 0:
+        score += 10
+    return min(score, 95)
+
+
+def score_idle_nat(_nat, bytes_30d):
+    """NAT gateway: 85 at zero bytes out in 30d, 65 under the noise floor, else 0."""
+    if bytes_30d is None or bytes_30d > NAT_IDLE_BYTES:
+        return 0
+    return 85 if bytes_30d == 0 else 65
 
 
 def finding(kind, rid, region, score, monthly_usd, note, command=None, tags=None):
@@ -152,7 +186,11 @@ def _scan_eips(ec2, region, price_of):
     ]
 
 
-def _scan_load_balancers(elb, region, price_of):
+LB_NAMESPACES = {"application": "AWS/ApplicationELB", "network": "AWS/NetworkELB",
+                 "gateway": "AWS/GatewayELB"}
+
+
+def _scan_load_balancers(elb, cw, region, price_of):
     findings = []
     for lb in _pages(elb, "describe_load_balancers", "LoadBalancers"):
         targets = 0
@@ -160,16 +198,39 @@ def _scan_load_balancers(elb, region, price_of):
                 LoadBalancerArn=lb["LoadBalancerArn"])["TargetGroups"]:
             targets += len(elb.describe_target_health(
                 TargetGroupArn=tg["TargetGroupArn"])["TargetHealthDescriptions"])
-        score = score_empty_lb(lb, targets)
+        traffic = None
+        if not targets and lb["Type"] in LB_NAMESPACES:
+            traffic = cw_sum(cw, LB_NAMESPACES[lb["Type"]], "ProcessedBytes",
+                             [("LoadBalancer", lb["LoadBalancerArn"].split("loadbalancer/")[-1])])
+        score = score_empty_lb(lb, targets, traffic)
         if score:
+            idle = ", no traffic in 30d" if traffic == 0 else ""
             tags = elb.describe_tags(  # not in describe_load_balancers; only fetched for findings
                 ResourceArns=[lb["LoadBalancerArn"]])["TagDescriptions"][0]["Tags"]
             findings.append(finding(
                 "elb-no-targets", lb["LoadBalancerName"], region, score, price_of("elb"),
-                f"{lb['Type']} LB with 0 registered targets",
+                f"{lb['Type']} LB with 0 registered targets{idle}",
                 f"aws elbv2 delete-load-balancer --region {region} "
                 f"--load-balancer-arn {lb['LoadBalancerArn']}",
                 tags,
+            ))
+    return findings
+
+
+def _scan_nat_gateways(ec2, cw, region, price_of):
+    findings = []
+    for nat in _pages(ec2, "describe_nat_gateways", "NatGateways",
+                      Filter=[{"Name": "state", "Values": ["available"]}]):
+        nat_id = nat["NatGatewayId"]
+        out = cw_sum(cw, "AWS/NATGateway", "BytesOutToDestination", [("NatGatewayId", nat_id)])
+        score = score_idle_nat(nat, out)
+        if score:
+            mib = (out or 0) / 1024 ** 2
+            findings.append(finding(
+                "nat-idle", nat_id, region, score, price_of("nat"),
+                f"NAT gateway sent {mib:.1f} MiB in 30d, up {age_days(nat['CreateTime'])}d",
+                f"aws ec2 delete-nat-gateway --region {region} --nat-gateway-id {nat_id}",
+                nat.get("Tags"),
             ))
     return findings
 
@@ -179,11 +240,13 @@ def scan_region(region, session=None, live_pricing=False):
     session = session or boto3.Session()
     ec2 = session.client("ec2", region_name=region)
     elb = session.client("elbv2", region_name=region)
+    cw = session.client("cloudwatch", region_name=region)
     price_of = partial(price, region=region, session=session, live=live_pricing)
 
     return (_scan_volumes(ec2, region, price_of)
             + _scan_eips(ec2, region, price_of)
-            + _scan_load_balancers(elb, region, price_of))
+            + _scan_load_balancers(elb, cw, region, price_of)
+            + _scan_nat_gateways(ec2, cw, region, price_of))
 
 
 def render(findings, min_confidence=0, show_commands=False):
