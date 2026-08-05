@@ -44,6 +44,19 @@ RESPONSES = {
         {"Instances": [{"ImageId": "ami-running", "State": {"Name": "running"}},
                        {"ImageId": "ami-unused", "State": {"Name": "terminated"}}]},
     ]},
+    "describe_network_interfaces": {"NetworkInterfaces": [
+        {"NetworkInterfaceId": "eni-orphan", "Status": "available", "SubnetId": "subnet-1",
+         "Description": "", "TagSet": []},
+        # RequesterManaged: an AWS service owns this one — never report it
+        {"NetworkInterfaceId": "eni-rds", "Status": "available", "SubnetId": "subnet-1",
+         "RequesterManaged": True, "Description": "RDSNetworkInterface", "TagSet": []},
+    ]},
+    "describe_db_instances": {"DBInstances": [
+        {"DBInstanceIdentifier": "db-idle", "DBInstanceStatus": "available",
+         "DBInstanceClass": "db.t3.medium", "Engine": "postgres", "TagList": []},
+        {"DBInstanceIdentifier": "db-creating", "DBInstanceStatus": "creating",
+         "DBInstanceClass": "db.t3.small", "Engine": "mysql", "TagList": []},
+    ]},
     "describe_load_balancers": {"LoadBalancers": [
         {"LoadBalancerName": "legacy-alb", "LoadBalancerArn": "arn:...:loadbalancer/app/legacy/abc",
          "Type": "application", "CreatedTime": ago(90)},
@@ -77,7 +90,8 @@ def test_scan_region_finds_one_of_each_kind():
     by_kind = {f["kind"]: f for f in findings}
 
     assert set(by_kind) == {"ebs-unattached", "eip-unassociated", "elb-no-targets",
-                            "nat-idle", "ami-unused", "snapshot-orphaned"}
+                            "nat-idle", "ami-unused", "snapshot-orphaned",
+                            "eni-unattached", "rds-idle"}
     assert by_kind["ebs-unattached"]["id"] == "vol-dead"        # in-use volume is not a finding
     assert by_kind["ebs-unattached"]["confidence"] == 95
     assert by_kind["eip-unassociated"]["id"] == "eipalloc-1"    # associated EIP is not a finding
@@ -85,6 +99,11 @@ def test_scan_region_finds_one_of_each_kind():
     assert by_kind["ami-unused"]["id"] == "ami-unused"          # terminated instance doesn't count
     assert by_kind["elb-no-targets"]["confidence"] == 95 - 30   # zero traffic, terraform-tagged
     assert "IaC-managed" in by_kind["elb-no-targets"]["note"]
+    # a service-owned (RequesterManaged) ENI is never reported
+    assert by_kind["eni-unattached"]["id"] == "eni-orphan"
+    assert by_kind["eni-unattached"]["monthly_usd"] == 0.0     # free, but it pins its subnet
+    assert by_kind["rds-idle"]["id"] == "db-idle"              # a "creating" instance is skipped
+    assert by_kind["rds-idle"]["confidence"] == 80             # zero connections in 30d
 
 
 def test_only_genuinely_orphaned_snapshots_are_reported():
@@ -97,3 +116,48 @@ def test_only_genuinely_orphaned_snapshots_are_reported():
 if __name__ == "__main__":
     for f in scan_region("eu-west-1", FakeSession()):
         print(f"{f['confidence']:3d} {f['kind']:20s} {f['id']:15s} ${f['monthly_usd']}")
+
+
+def test_scan_regions_runs_in_parallel_and_survives_one_bad_region(monkeypatch):
+    """A region that raises is reported and skipped, not fatal to the sweep."""
+    import idle_hunter
+
+    seen = []
+
+    def fake_scan_region(region, session=None, live_pricing=False):
+        seen.append(region)
+        if region == "eu-broken-1":
+            raise RuntimeError("AccessDenied")
+        return [{"region": region, "kind": "ebs-unattached", "id": f"vol-{region}",
+                 "confidence": 90, "monthly_usd": 1.0, "note": "n"}]
+
+    monkeypatch.setattr(idle_hunter, "scan_region", fake_scan_region)
+
+    errors = []
+    findings, failed = idle_hunter.scan_regions(
+        ["eu-west-1", "eu-broken-1", "us-east-1"],
+        live_pricing=False, workers=3,
+        on_error=lambda r, e: errors.append((r, str(e))))
+
+    assert sorted(f["region"] for f in findings) == ["eu-west-1", "us-east-1"]
+    assert failed == ["eu-broken-1"]
+    assert errors == [("eu-broken-1", "AccessDenied")]
+    assert sorted(seen) == ["eu-broken-1", "eu-west-1", "us-east-1"]
+
+
+def test_single_region_does_not_start_a_pool(monkeypatch):
+    """One region keeps the caller's session — no reason to build a second one."""
+    import idle_hunter
+
+    used = {}
+
+    def fake_scan_region(region, session=None, live_pricing=False):
+        used["session"] = session
+        return []
+
+    monkeypatch.setattr(idle_hunter, "scan_region", fake_scan_region)
+    sentinel = object()
+    findings, failed = idle_hunter.scan_regions(["eu-west-1"], session=sentinel)
+
+    assert findings == [] and failed == []
+    assert used["session"] is sentinel

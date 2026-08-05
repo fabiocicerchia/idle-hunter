@@ -18,6 +18,7 @@ output is a report (optionally with ready-to-review `aws` CLI commands).
 import argparse
 import json
 import sys
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
 from functools import partial
 
@@ -49,7 +50,16 @@ def iac_managed(tags):
 
 # --- pricing ----------------------------------------------------------------
 # Rough us-east-1 list prices, monthly per unit. Used unless --live-pricing.
-PRICE_DEFAULTS = {"ebs_gb": 0.08, "snapshot_gb": 0.05, "eip": 3.6, "elb": 18.0, "nat": 32.9}
+PRICE_DEFAULTS = {
+    "ebs_gb": 0.08, "snapshot_gb": 0.05, "eip": 3.6, "elb": 18.0, "nat": 32.9,
+    # An unattached ENI is free. It is still worth reporting: it pins the subnet
+    # and security group it references, so it blocks their deletion.
+    "eni": 0.0,
+    # RDS price is dominated by instance class, which this estimate cannot know —
+    # db.t3.medium single-AZ on-demand as a baseline. The finding names the real
+    # class so the reader can scale it; --live-pricing is not wired up for RDS.
+    "rds": 60.0,
+}
 
 # key -> (pricing service code, TERM_MATCH filters, months-per-unit multiplier)
 PRICE_QUERIES = {
@@ -82,7 +92,7 @@ def _lookup_price(session, service_code, filters):
 
 def price(key, region, session=None, live=False):
     """Monthly USD per unit — Pricing API when `live`, else the built-in estimate."""
-    if not live:
+    if not live or key not in PRICE_QUERIES:
         return PRICE_DEFAULTS[key]
     if (key, region) not in _PRICE_CACHE:
         service, filters, months = PRICE_QUERIES[key]
@@ -114,6 +124,7 @@ def cw_sum(cw, namespace, metric, dimensions, days=30):
 
 # --- scoring (pure) ---------------------------------------------------------
 NAT_IDLE_BYTES = 10 * 1024 ** 2  # 30d of DNS/health-check noise, not real traffic
+RDS_IDLE_CONNECTIONS = 30        # 30d: a monitoring probe once a day, not an application
 
 
 def score_unattached_volume(vol):
@@ -128,6 +139,34 @@ def score_unattached_volume(vol):
 
 def score_unassociated_eip(_addr):
     return 90  # unassociated EIPs cost money and have no state to lose
+
+
+def score_unattached_eni(eni):
+    """Detached ENI: 85 when it is yours, 0 when a service owns it.
+
+    `RequesterManaged` means some AWS service (RDS, Lambda, an ELB node, a VPC
+    endpoint) created this interface and is responsible for it. Those look
+    exactly like abandoned interfaces and deleting one breaks the service that
+    owns it, so they score 0 rather than a lowered number — this is not a
+    confidence judgement, it is the wrong resource.
+    """
+    if eni.get("Status") != "available":
+        return 0
+    if eni.get("RequesterManaged"):
+        return 0
+    return 85
+
+
+def score_idle_rds(_db, connections_30d):
+    """RDS instance: 80 at zero connections in 30d, 55 below the noise floor, else 0.
+
+    `None` means CloudWatch returned nothing — unknown, not idle — so it scores
+    0 for the same reason `score_idle_nat` does: a database is the last thing
+    that should be deleted on missing evidence.
+    """
+    if connections_30d is None or connections_30d > RDS_IDLE_CONNECTIONS:
+        return 0
+    return 80 if connections_30d == 0 else 55
 
 
 def score_empty_lb(lb, target_count, bytes_30d=None):
@@ -204,6 +243,48 @@ def _scan_eips(ec2, region, price_of):
         )
         for addr in ec2.describe_addresses()["Addresses"] if "AssociationId" not in addr
     ]
+
+
+def _scan_enis(ec2, region, price_of):
+    findings = []
+    for eni in _pages(ec2, "describe_network_interfaces", "NetworkInterfaces",
+                      Filters=[{"Name": "status", "Values": ["available"]}]):
+        score = score_unattached_eni(eni)
+        if not score:
+            continue
+        eni_id = eni["NetworkInterfaceId"]
+        desc = (eni.get("Description") or "").strip() or "no description"
+        findings.append(finding(
+            "eni-unattached", eni_id, region, score, price_of("eni"),
+            f"detached network interface in {eni.get('SubnetId', '?')} ({desc}) — "
+            f"free, but it pins its subnet and security groups",
+            f"aws ec2 delete-network-interface --region {region} "
+            f"--network-interface-id {eni_id}",
+            eni.get("TagSet"),
+        ))
+    return findings
+
+
+def _scan_rds(rds, cw, region, price_of):
+    findings = []
+    for db in _pages(rds, "describe_db_instances", "DBInstances"):
+        if db.get("DBInstanceStatus") != "available":
+            continue
+        name = db["DBInstanceIdentifier"]
+        conns = cw_sum(cw, "AWS/RDS", "DatabaseConnections", [("DBInstanceIdentifier", name)])
+        score = score_idle_rds(db, conns)
+        if not score:
+            continue
+        klass = db.get("DBInstanceClass", "?")
+        findings.append(finding(
+            "rds-idle", name, region, score, price_of("rds"),
+            f"{klass} {db.get('Engine', '?')} took {int(conns)} connection(s) in 30d "
+            f"(cost shown is a db.t3.medium baseline, scale it for {klass})",
+            f"aws rds delete-db-instance --region {region} --db-instance-identifier {name} "
+            f"--final-db-snapshot-identifier {name}-final",
+            db.get("TagList"),
+        ))
+    return findings
 
 
 LB_NAMESPACES = {"application": "AWS/ApplicationELB", "network": "AWS/NetworkELB",
@@ -307,15 +388,48 @@ def scan_region(region, session=None, live_pricing=False):
     ec2 = session.client("ec2", region_name=region)
     elb = session.client("elbv2", region_name=region)
     cw = session.client("cloudwatch", region_name=region)
+    rds = session.client("rds", region_name=region)
     price_of = partial(price, region=region, session=session, live=live_pricing)
 
     volumes, live_volume_ids = _scan_volumes(ec2, region, price_of)
     images, ami_snapshots = _scan_images(ec2, region, price_of)
     return (volumes + images
             + _scan_eips(ec2, region, price_of)
+            + _scan_enis(ec2, region, price_of)
             + _scan_load_balancers(elb, cw, region, price_of)
             + _scan_nat_gateways(ec2, cw, region, price_of)
+            + _scan_rds(rds, cw, region, price_of)
             + _scan_snapshots(ec2, region, price_of, live_volume_ids, ami_snapshots))
+
+
+def scan_regions(regions, session=None, live_pricing=False, workers=8, on_error=None):
+    """Scan several regions concurrently.
+
+    Each worker builds its own boto3 Session: Session objects are not
+    thread-safe, and sharing one across a pool is the classic way to get
+    intermittent credential errors under load.
+
+    A region that fails is reported and skipped rather than aborting the sweep —
+    but the caller is told, because a report that quietly lost a region reads
+    exactly like a clean estate. Returns `(findings, failed_regions)`.
+    """
+    if len(regions) == 1:
+        return scan_region(regions[0], session, live_pricing), []
+
+    findings, failed = [], []
+    with ThreadPoolExecutor(max_workers=max(1, min(workers, len(regions)))) as pool:
+        pending = {pool.submit(scan_region, r, None, live_pricing): r for r in regions}
+        for future in as_completed(pending):
+            region = pending[future]
+            try:
+                findings.extend(future.result())
+            except Exception as exc:  # one bad region must not lose the other 30
+                failed.append(region)
+                if on_error:
+                    on_error(region, exc)
+                else:
+                    print(f"warning: {region}: {exc}", file=sys.stderr)
+    return findings, failed
 
 
 def render(findings, min_confidence=0, show_commands=False):
@@ -343,6 +457,9 @@ def main(argv=None):
     s.add_argument("--commands", action="store_true", help="print deletion commands (never executed)")
     s.add_argument("--live-pricing", action="store_true",
                    help="look up real prices via the Pricing API (needs pricing:GetProducts)")
+    s.add_argument("--workers", type=int, default=8, metavar="N",
+                   help="regions scanned in parallel with --all-regions (default 8; "
+                        "lower it if the account is being throttled)")
     s.add_argument("--json", action="store_true")
     args = p.parse_args(argv)
 
@@ -353,9 +470,10 @@ def main(argv=None):
         ec2 = session.client("ec2", region_name="us-east-1")
         regions = [r["RegionName"] for r in ec2.describe_regions()["Regions"]]
 
-    findings = []
-    for region in regions:
-        findings.extend(scan_region(region, session, args.live_pricing))
+    findings, failed = scan_regions(regions, session, args.live_pricing, args.workers)
+    # Completion order is non-deterministic once regions run in parallel, so
+    # sort before emitting: two runs over the same estate must diff cleanly.
+    findings.sort(key=lambda f: (f["region"], f["kind"], str(f["id"])))
 
     if args.json:
         # --min-confidence applies here too: a script generated from this output
@@ -364,6 +482,11 @@ def main(argv=None):
                   sys.stdout, indent=2, default=str)
     else:
         print(render(findings, args.min_confidence, args.commands))
+
+    if failed:
+        print(f"\nwarning: {len(failed)} region(s) failed and are missing from this "
+              f"report: {', '.join(sorted(failed))}", file=sys.stderr)
+        return 3  # partial results — never let a lost region look like a clean estate
     return 0
 
 

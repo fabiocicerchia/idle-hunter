@@ -83,3 +83,19 @@ def test_render_sorts_and_filters():
     out = render(fs, min_confidence=80)
     assert "eip-1" in out and "vol-1" not in out
     assert "1 finding(s)" in out
+
+
+def test_eni_score_zero_when_a_service_owns_it():
+    from idle_hunter import score_unattached_eni
+    assert score_unattached_eni({"Status": "available"}) == 85
+    # RequesterManaged is not low confidence, it is the wrong resource entirely
+    assert score_unattached_eni({"Status": "available", "RequesterManaged": True}) == 0
+    assert score_unattached_eni({"Status": "in-use"}) == 0
+
+
+def test_rds_score_treats_missing_metrics_as_unknown():
+    from idle_hunter import score_idle_rds
+    assert score_idle_rds({}, 0) == 80            # nothing connected in 30 days
+    assert score_idle_rds({}, 5) == 55            # below the noise floor
+    assert score_idle_rds({}, 5000) == 0          # in use
+    assert score_idle_rds({}, None) == 0          # no metric is unknown, never idle
