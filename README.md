@@ -7,9 +7,14 @@
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/fabiocicerchia/idle-hunter/badge)](https://securityscorecards.dev/viewer/?uri=github.com/fabiocicerchia/idle-hunter)
 
 A **zombie-resource scanner** for AWS: unattached EBS volumes, unassociated
-Elastic IPs, load balancers with zero targets, idle NAT gateways, orphaned
-snapshots and unused AMIs — each with a **confidence-to-delete score (0–100)**
-and the monthly cost you'd reclaim.
+Elastic IPs, detached network interfaces, load balancers with zero targets,
+idle NAT gateways, idle RDS instances, orphaned snapshots and unused AMIs —
+each with a **confidence-to-delete score (0–100)** and the monthly cost you'd
+reclaim.
+
+`--all-regions` scans regions in parallel (`--workers`, default 8). A region
+that fails is named on stderr and the run exits `3`, so a lost region never
+reads as a clean estate.
 
 It never deletes anything. `--commands` prints ready-to-review AWS CLI
 commands; running them is on you, by design.
