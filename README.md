@@ -1,5 +1,11 @@
 # idle-hunter
 
+[![CI](https://github.com/fabiocicerchia/idle-hunter/actions/workflows/ci.yml/badge.svg)](https://github.com/fabiocicerchia/idle-hunter/actions/workflows/ci.yml)
+[![Code Quality](https://github.com/fabiocicerchia/idle-hunter/actions/workflows/code-quality.yml/badge.svg)](https://github.com/fabiocicerchia/idle-hunter/actions/workflows/code-quality.yml)
+[![Security](https://github.com/fabiocicerchia/idle-hunter/actions/workflows/security.yml/badge.svg)](https://github.com/fabiocicerchia/idle-hunter/actions/workflows/security.yml)
+[![License](https://img.shields.io/badge/license-Apache_2.0-blue.svg)](LICENSE)
+[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/fabiocicerchia/idle-hunter/badge)](https://securityscorecards.dev/viewer/?uri=github.com/fabiocicerchia/idle-hunter)
+
 A **zombie-resource scanner** for AWS: unattached EBS volumes, unassociated
 Elastic IPs, load balancers with zero targets, idle NAT gateways, orphaned
 snapshots and unused AMIs — each with a **confidence-to-delete score (0–100)**
@@ -28,6 +34,12 @@ there is deliberately no 100, because a scanner can't know your intent.
 Resources tagged as owned by CloudFormation, Terraform, CDK or Beanstalk score
 30 lower: deleting those by hand just gets reverted on the next apply.
 
+## Install
+
+```sh
+pipx install .      # or: pip install .
+```
+
 ## Usage
 
 ```sh
@@ -41,19 +53,13 @@ IAM: read-only (`ec2:Describe*`, `elasticloadbalancing:Describe*`,
 `cloudwatch:GetMetricStatistics`, plus `pricing:GetProducts` for
 `--live-pricing`).
 
-## Status & roadmap
-
-- [x] EBS volumes, EIPs, empty LBs with scores + costs
-- [x] Idle NAT gateways (CloudWatch bytes), stale snapshots, unused AMIs
-- [x] CloudWatch traffic signals to push scores higher
-- [x] Terraform/CloudFormation ownership detection (managed = lower score)
-- [x] Real pricing via the Pricing API (`--live-pricing`) instead of estimates
-- [ ] Idle RDS instances and unattached ENIs
-- [ ] Parallel `--all-regions` (today it is serial)
-
 ## Development
 
 `make dev` then `make test` / `make lint`.
+
+## Documentation
+
+Full docs live in [`docs/`](docs/). Runnable examples live in [`examples/`](examples/).
 
 ## License
 
