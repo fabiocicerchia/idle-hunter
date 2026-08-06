@@ -5,6 +5,26 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 1.0.0 (2026-08-06)
+
+
+### Features
+
+* **pricing:** resolve real prices via the Pricing API under --live-pricing ([5b66162](https://github.com/fabiocicerchia/idle-hunter/commit/5b661624a2b43a7dd542880736cfa2b628418f6e))
+* scan regions in parallel, and find idle RDS and detached ENIs ([34c5967](https://github.com/fabiocicerchia/idle-hunter/commit/34c5967ffdc18ceeb331c72878acfbdc14e8932d))
+* scan regions in parallel, and find idle RDS and detached ENIs ([16aef40](https://github.com/fabiocicerchia/idle-hunter/commit/16aef404b7abf62ba8cc4902213cab508aa786c8))
+* **scan:** add idle NAT gateway check with CloudWatch traffic signals ([c80acec](https://github.com/fabiocicerchia/idle-hunter/commit/c80acec4dd9eadb8cabae8361123782d8e9de9fa))
+* **scan:** add orphaned snapshot and unused AMI checks ([87208b6](https://github.com/fabiocicerchia/idle-hunter/commit/87208b6547f844945327a85c66fd3023bd9b51c6))
+* **score:** lower confidence for IaC-managed resources ([2c61aed](https://github.com/fabiocicerchia/idle-hunter/commit/2c61aed6efa2dffc4690427170aa1a1ca6202791))
+
+
+### Bug Fixes
+
+* **ci:** install pytest even when the package has no [dev] extra ([99713b8](https://github.com/fabiocicerchia/idle-hunter/commit/99713b89131f1063770481cfdb8fb364093186dd))
+* **ci:** stop security workflows failing on private repos ([#7](https://github.com/fabiocicerchia/idle-hunter/issues/7)) ([a20d52b](https://github.com/fabiocicerchia/idle-hunter/commit/a20d52b13130567807f8d90a83052025a855b0cb))
+* **cli:** apply --min-confidence to --json output ([d16c3fa](https://github.com/fabiocicerchia/idle-hunter/commit/d16c3fa3941d5e74d87580e5211c4d68ec3f124f))
+* **pre-commit:** stop check-yaml failing on Helm templates and multi-doc manifests ([4afa954](https://github.com/fabiocicerchia/idle-hunter/commit/4afa954b312257e6a3982fbf97cf1f2963f79345))
+
 ## [Unreleased]
 
 ### Added
