@@ -5,6 +5,7 @@
 [![Security](https://github.com/fabiocicerchia/idle-hunter/actions/workflows/security.yml/badge.svg)](https://github.com/fabiocicerchia/idle-hunter/actions/workflows/security.yml)
 [![License](https://img.shields.io/badge/license-Apache_2.0-blue.svg)](LICENSE)
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/fabiocicerchia/idle-hunter/badge)](https://securityscorecards.dev/viewer/?uri=github.com/fabiocicerchia/idle-hunter)
+[![CI carbon](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/fabiocicerchia/idle-hunter/gh-pages/badge.json)](.github/workflows/carbon-badge.yml)
 
 A **zombie-resource scanner** for AWS: unattached EBS volumes, unassociated
 Elastic IPs, detached network interfaces, load balancers with zero targets,
