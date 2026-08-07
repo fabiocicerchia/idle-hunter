@@ -33,13 +33,13 @@ def test_lb_score_zero_when_targets_exist():
 def test_lb_score_boosted_by_zero_traffic():
     lb = {"CreatedTime": days_ago(90), "Type": "application"}
     assert score_empty_lb(lb, 0, bytes_30d=0) == 95
-    assert score_empty_lb(lb, 0, bytes_30d=None) == 85       # unknown ≠ idle
+    assert score_empty_lb(lb, 0, bytes_30d=None) == 85  # unknown ≠ idle
     assert score_empty_lb(lb, 0, bytes_30d=10_000) == 85
 
 
 def test_nat_score_needs_a_metric():
     nat = {"CreateTime": days_ago(200)}
-    assert score_idle_nat(nat, None) == 0                    # no datapoints ≠ dead
+    assert score_idle_nat(nat, None) == 0  # no datapoints ≠ dead
     assert score_idle_nat(nat, 0) == 85
     assert score_idle_nat(nat, NAT_IDLE_BYTES - 1) == 65
     assert score_idle_nat(nat, NAT_IDLE_BYTES + 1) == 0
@@ -48,11 +48,11 @@ def test_nat_score_needs_a_metric():
 def test_snapshot_and_ami_scores():
     snap = {"StartTime": days_ago(400)}
     assert score_stale_snapshot(snap, source_exists=True) == 0
-    assert score_stale_snapshot(snap, source_exists=False) == 80          # capped
+    assert score_stale_snapshot(snap, source_exists=False) == 80  # capped
     assert score_stale_snapshot({"StartTime": days_ago(1)}, False) == 45
     ami = {"CreationDate": "2020-01-01T00:00:00.000Z"}
     assert score_unused_ami(ami, in_use=True) == 0
-    assert score_unused_ami(ami, in_use=False) == 75                      # capped
+    assert score_unused_ami(ami, in_use=False) == 75  # capped
 
 
 def test_iac_managed_tags_lower_the_score():
@@ -60,8 +60,15 @@ def test_iac_managed_tags_lower_the_score():
     assert iac_managed([{"Key": "managed_by", "Value": "Terraform"}])
     assert not iac_managed([{"Key": "Name", "Value": "terraforming-mars"}])
     assert not iac_managed(None)
-    f = finding("ebs-unattached", "vol-1", "eu-west-1", 90, 8.0, "n",
-                tags=[{"Key": "terraform:module", "Value": "vpc"}])
+    f = finding(
+        "ebs-unattached",
+        "vol-1",
+        "eu-west-1",
+        90,
+        8.0,
+        "n",
+        tags=[{"Key": "terraform:module", "Value": "vpc"}],
+    )
     assert f["confidence"] == 60 and "IaC-managed" in f["note"]
 
 
@@ -87,6 +94,7 @@ def test_render_sorts_and_filters():
 
 def test_eni_score_zero_when_a_service_owns_it():
     from idle_hunter import score_unattached_eni
+
     assert score_unattached_eni({"Status": "available"}) == 85
     # RequesterManaged is not low confidence, it is the wrong resource entirely
     assert score_unattached_eni({"Status": "available", "RequesterManaged": True}) == 0
@@ -95,7 +103,8 @@ def test_eni_score_zero_when_a_service_owns_it():
 
 def test_rds_score_treats_missing_metrics_as_unknown():
     from idle_hunter import score_idle_rds
-    assert score_idle_rds({}, 0) == 80            # nothing connected in 30 days
-    assert score_idle_rds({}, 5) == 55            # below the noise floor
-    assert score_idle_rds({}, 5000) == 0          # in use
-    assert score_idle_rds({}, None) == 0          # no metric is unknown, never idle
+
+    assert score_idle_rds({}, 0) == 80  # nothing connected in 30 days
+    assert score_idle_rds({}, 5) == 55  # below the noise floor
+    assert score_idle_rds({}, 5000) == 0  # in use
+    assert score_idle_rds({}, None) == 0  # no metric is unknown, never idle
