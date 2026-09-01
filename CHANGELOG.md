@@ -5,6 +5,13 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0](https://github.com/fabiocicerchia/idle-hunter/compare/v1.0.0...v1.1.0) (2026-08-30)
+
+
+### Features
+
+* **docs:** build the docs site in Actions and drop Read the Docs ([#25](https://github.com/fabiocicerchia/idle-hunter/issues/25)) ([4afb888](https://github.com/fabiocicerchia/idle-hunter/commit/4afb888f4acab0ea24d493052af2c5460a69b57f))
+
 ## 1.0.0 (2026-08-06)
 
 
