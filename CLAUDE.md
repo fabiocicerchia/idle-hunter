@@ -5,9 +5,11 @@ Guidance for Claude Code (and other AI agents) working in this repo.
 ## Project
 
 A **zombie-resource scanner** for AWS: unattached EBS volumes,
-unassociated Elastic IPs, load balancers with zero targets, idle NAT gateways,
-orphaned snapshots, unused AMIs — each with a **confidence-to-delete score
-(0–100)** and the monthly cost you'd reclaim. Python, tests in `tests/`.
+unassociated Elastic IPs, detached network interfaces, load balancers with zero
+targets, idle NAT gateways, idle RDS instances, orphaned snapshots, unused AMIs
+— each with a **confidence-to-delete score (0–100)** and the monthly cost you'd
+reclaim. Python. `idle_hunter.py` is the entrypoint, the tool lives in
+`idle_hunter_lib/` (see `docs/architecture.md`), tests in `tests/`.
 
 ## Commands
 

@@ -1,23 +1,43 @@
 # Architecture
 
-One module, `idle_hunter.py`, with a hard line through the middle of it:
-the half that talks to AWS, and the half that decides what a finding is worth.
+`idle_hunter.py` is the entrypoint and nothing else — a shebang, the
+console-script name, and a call into `idle_hunter_lib/`. The hard line runs
+through the package: the half that talks to AWS, and the half that decides what
+a finding is worth.
+
+```
+idle_hunter.py            the entrypoint; keeps the console-script name
+idle_hunter_lib/
+    cli.py                argparse, the exit-code table, the one logging setup
+    regions.py            scan_region / scan_regions — client wiring and the fan-out
+    scan.py               the _scan_* functions: the only code that calls boto3
+    score.py              score_* — pure, no AWS, no clock beyond now()
+    models.py             Finding, and the one place the IaC penalty is applied
+    pricing.py            PRICE_DEFAULTS, the Pricing API lookup and its cache
+    metrics.py            cw_sum — CloudWatch, where no datapoints means unknown
+    render.py             text and JSON output; prints commands, never runs one
+```
+
+One pass reads top to bottom through those modules:
 
 ```
 scan_region(region)               ← builds the clients, fans out to the _scan_* half
     _scan_volumes                   describe_volumes         (also: the live-volume id set)
+    _scan_images                    describe_images/instances (also: the AMI-backing snapshots)
     _scan_eips                      describe_addresses
+    _scan_enis                      describe_network_interfaces
     _scan_load_balancers            describe_load_balancers → target_groups → target_health
     _scan_nat_gateways              describe_nat_gateways    + cw_sum(BytesOutToDestination)
-    _scan_images                    describe_images/instances (also: the AMI-backing snapshots)
+    _scan_rds                       describe_db_instances    + cw_sum(DatabaseConnections)
     _scan_snapshots                 describe_snapshots
         │   ← the _scan_* functions are the only code that calls boto3
         │
         └── score_*(resource, signal)  ← pure functions, no AWS, no clock beyond now()
               │
-              └── finding(...)      ← a dict: kind, id, region, confidence,
-                                      monthly_usd, note, command.
-                                      Applies the IaC-managed penalty, in one place.
+              └── finding(...)      ← a frozen Finding: kind, id, region, confidence,
+                                      monthly_usd, note, command. Field order is the
+                                      JSON output order. Applies the IaC-managed
+                                      penalty, in one place.
                     │
                     └── render()    ← sorts, filters, formats. Prints commands;
                                       never runs one.
@@ -65,7 +85,7 @@ exactly the thing this tool declines to do.
 facts the score was computed from (size, age, status), so a reader can disagree
 with the score without re-querying AWS.
 
-`score_empty_lb` returns 0 when targets exist, and `render` drops zero-score
+`score_empty_lb` returns 0 when targets exist, and `render()` drops zero-score
 findings. "Not a finding" and "a finding I am unsure about" are the same code
 path, which keeps the caller from having to know the difference.
 
@@ -82,9 +102,9 @@ where the metric is not published, reports nothing — and "nothing" read as
 
 ## IaC ownership is a penalty, applied once
 
-`finding()` checks the resource's tags for CloudFormation, Terraform, CDK,
-Pulumi and Beanstalk markers, and subtracts 30 (floored at 5, never to 0 —
-it stays visible, just not near the top).
+`finding()` in `models.py` checks the resource's tags for CloudFormation,
+Terraform, CDK, Pulumi and Beanstalk markers, and subtracts 30 (floored at 5,
+never to 0 — it stays visible, just not near the top).
 
 It lives in `finding()` rather than in each `score_*` because every check routes
 through it, so a new check gets the behaviour without knowing it exists. The
@@ -100,9 +120,10 @@ for an Elastic IP, `18.0` for a load balancer. Not your prices: they ignore
 region, volume type (gp3 vs io2 is not a rounding error), and any discount.
 
 `--live-pricing` swaps them for a Pricing API lookup per `(key, region)`,
-cached in `_PRICE_CACHE` for the process, so `--all-regions` costs one lookup
-per price per region and no more. Every check reaches prices through the same
-`price_of` partial, so a check does not know or care which mode it is in.
+cached in `_PRICE_CACHE` in `pricing.py` for the process, so `--all-regions`
+costs one lookup per price per region and no more. Every check reaches prices
+through the same `price_of` partial, so a check does not know or care which
+mode it is in.
 
 The lookup is deliberately failure-tolerant: a missing `pricing:GetProducts`,
 or a product shape the filters do not match, falls back to the constant instead
@@ -120,20 +141,21 @@ with the LB). NAT gateways and empty LBs each add a CloudWatch
 `get_metric_statistics`. On an account with many load balancers, `--all-regions`
 is where the time goes.
 
-`--all-regions` enumerates regions via `describe_regions` and scans each
-serially. It is the honest implementation and it is slow; that is a known
-ceiling, not a subtlety.
+`--all-regions` enumerates regions via `describe_regions` and scans them in a
+thread pool (`--workers`, default 8), each worker with its own boto3 Session.
+A region that raises is collected into `failed`, reported, and the run exits 3.
 
 ## Adding a check
 
-1. A `score_*` pure function next to the others. It takes the AWS response
-   shape (plus any CloudWatch signal, where `None` must mean *unknown*) and
-   returns 0–100, with a cap below 100 and a docstring stating the rule in one
-   line.
-2. A `_scan_*` function that queries and appends `finding(...)` — including the
+1. A `score_*` pure function in `idle_hunter_lib/score.py`, next to the
+   others. It takes the AWS response shape (plus any CloudWatch signal, where
+   `None` must mean *unknown*) and returns 0–100, with a cap below 100 and a
+   docstring stating the rule in one line.
+2. A `_scan_*` function in `idle_hunter_lib/scan.py` that queries and appends
+   `finding(...)` — including the
    `command`, which must be the exact CLI call a reviewer would run, and the
    resource's tags, which is how it inherits the IaC penalty for free. Call it
-   from `scan_region`.
+   from `scan_region` in `regions.py`.
 3. A test in `tests/` for the scoring function. The AWS half is not unit-tested
    and does not need to be; the scoring is the part with an opinion in it.
 
