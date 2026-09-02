@@ -24,6 +24,11 @@ from idle_hunter_lib.render import render, render_json
 
 LOGGER = logging.getLogger(__name__)
 
+# The exit codes this tool promises. 3 is contract, not choice: README.md:17
+# tells readers a run that lost a region exits 3. argparse still owns 2.
+EXIT_OK = 0
+EXIT_PARTIAL_RESULTS = 3
+
 # What --region defaults to, and the region --all-regions enumerates from.
 DEFAULT_REGION = "us-east-1"
 
@@ -88,5 +93,6 @@ def main(argv=None):
             len(failed),
             ", ".join(sorted(failed)),
         )
-        return 3  # partial results — never let a lost region look like a clean estate
-    return 0
+        # never let a lost region look like a clean estate
+        return EXIT_PARTIAL_RESULTS
+    return EXIT_OK
