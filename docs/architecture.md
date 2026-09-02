@@ -104,6 +104,25 @@ cached in `_PRICE_CACHE` for the process, so `--all-regions` costs one lookup
 per price per region and no more. Every check reaches prices through the same
 `price_of` partial, so a check does not know or care which mode it is in.
 
+RDS is the one price that is not a per-unit rate. A gigabyte costs a gigabyte,
+but a database costs whatever its instance class, engine, deployment option and
+licence model add up to — none of which is known until the instance is in hand.
+So `PRICE_QUERIES["rds"]` leaves those four filters as `None` holes, and
+`rds_shape()` fills them from the `DBInstance` at the call site; the cache key
+widens to include them, so a `db.r6g.xlarge` and a `db.t3.small` in the same
+region are two lookups, not one.
+
+Two rules keep that from pricing the wrong thing:
+
+- **A hole left unfilled is not queried.** `rds_engine_name()` returns `None`
+  for an engine it cannot name rather than guessing, and `price()` falls back to
+  the constant instead of sending a partial filter set — which would match some
+  other shape's SKU and return a confident wrong number.
+- **The finding says which number it is.** `price_is_live()` reads back whether
+  the lookup landed, so a live-priced instance reads `priced as db.m5.large
+  Single-AZ on-demand` and an estimated one keeps the honest `cost shown is a
+  db.t3.medium baseline, scale it for db.m5.large`.
+
 The lookup is deliberately failure-tolerant: a missing `pricing:GetProducts`,
 or a product shape the filters do not match, falls back to the constant instead
 of raising. A scan that dies because it could not price a volume it correctly

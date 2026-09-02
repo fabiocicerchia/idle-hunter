@@ -61,19 +61,81 @@ PRICE_DEFAULTS = {
     # and security group it references, so it blocks their deletion.
     "eni": 0.0,
     # RDS price is dominated by instance class, which this estimate cannot know —
-    # db.t3.medium single-AZ on-demand as a baseline. The finding names the real
-    # class so the reader can scale it; --live-pricing is not wired up for RDS.
+    # db.t3.medium single-AZ on-demand as a baseline. --live-pricing resolves the
+    # real class; without it the finding names the class so the reader can scale.
     "rds": 60.0,
 }
 
 # key -> (pricing service code, TERM_MATCH filters, months-per-unit multiplier)
+#
+# A filter value of None is a hole filled at call time from price()'s keyword
+# arguments. RDS needs them: unlike a gigabyte or an idle NAT gateway it has no
+# single per-unit rate — class, engine, deployment and licence each move the
+# price, and none is known until the instance is in hand.
 PRICE_QUERIES = {
     "ebs_gb": ("AmazonEC2", (("productFamily", "Storage"), ("volumeApiName", "gp3")), 1),
     "snapshot_gb": ("AmazonEC2", (("productFamily", "Storage Snapshot"),), 1),
     "eip": ("AmazonEC2", (("productFamily", "IP Address"),), 730),
     "elb": ("AWSELB", (("productFamily", "Load Balancer-Application"),), 730),
     "nat": ("AmazonEC2", (("productFamily", "NAT Gateway"),), 730),
+    "rds": (
+        "AmazonRDS",
+        (
+            ("productFamily", "Database Instance"),
+            ("instanceType", None),
+            ("databaseEngine", None),
+            ("deploymentOption", None),
+            ("licenseModel", None),
+        ),
+        730,
+    ),
 }
+
+# describe_db_instances reports the engine as an API token; the Pricing API wants
+# the marketing name. Oracle and SQL Server arrive edition-suffixed (oracle-ee,
+# sqlserver-ex), so those match on the family prefix.
+RDS_ENGINE_NAMES = {
+    "aurora-mysql": "Aurora MySQL",
+    "aurora-postgresql": "Aurora PostgreSQL",
+    "mariadb": "MariaDB",
+    "mysql": "MySQL",
+    "postgres": "PostgreSQL",
+}
+RDS_ENGINE_PREFIXES = (("oracle", "Oracle"), ("sqlserver", "SQL Server"), ("db2", "Db2"))
+
+# Only the two paid licence models have their own name upstream; every
+# open-source engine prices as "No license required" whatever token it reports.
+RDS_LICENCE_NAMES = {
+    "license-included": "License included",
+    "bring-your-own-license": "Bring your own license",
+}
+
+
+def rds_engine_name(engine):
+    """Pricing API `databaseEngine` for an RDS engine token, or None if unknown.
+
+    None means "do not guess". A wrong engine name still matches a real SKU, so
+    the instance would be priced confidently as something it is not — worse than
+    falling back to a baseline the finding admits is a baseline.
+    """
+    engine = (engine or "").lower()
+    if engine in RDS_ENGINE_NAMES:
+        return RDS_ENGINE_NAMES[engine]
+    for prefix, name in RDS_ENGINE_PREFIXES:
+        if engine.startswith(prefix):
+            return name
+    return None
+
+
+def rds_shape(db):
+    """The four Pricing API filters that identify one instance's SKU."""
+    return {
+        "instanceType": db.get("DBInstanceClass"),
+        "databaseEngine": rds_engine_name(db.get("Engine")),
+        "deploymentOption": "Multi-AZ" if db.get("MultiAZ") else "Single-AZ",
+        "licenseModel": RDS_LICENCE_NAMES.get(db.get("LicenseModel", ""), "No license required"),
+    }
+
 
 _PRICE_CACHE = {}
 
@@ -95,18 +157,41 @@ def _lookup_price(session, service_code, filters):
     return None
 
 
-def price(key, region, session=None, live=False):
-    """Monthly USD per unit — Pricing API when `live`, else the built-in estimate."""
+def _cache_key(key, region, params):
+    return (key, region, tuple(sorted(params.items())))
+
+
+def price(key, region, session=None, live=False, **params):
+    """Monthly USD per unit — Pricing API when `live`, else the built-in estimate.
+
+    `params` fill the None holes in this key's PRICE_QUERIES filters. A hole left
+    unfilled falls back to the estimate rather than querying without it: a
+    partial filter set matches some other shape's SKU and prices the wrong thing.
+    """
     if not live or key not in PRICE_QUERIES:
         return PRICE_DEFAULTS[key]
-    if (key, region) not in _PRICE_CACHE:
+    ck = _cache_key(key, region, params)
+    if ck not in _PRICE_CACHE:
         service, filters, months = PRICE_QUERIES[key]
-        try:
-            found = _lookup_price(session, service, filters + (("regionCode", region),))
-        except Exception:  # no pricing:GetProducts, or an unpriced shape — fall back
-            found = None
-        _PRICE_CACHE[(key, region)] = found * months if found else PRICE_DEFAULTS[key]
-    return _PRICE_CACHE[(key, region)]
+        resolved = tuple((k, params.get(k) if v is None else v) for k, v in filters)
+        found = None
+        if all(v for _, v in resolved):
+            try:
+                found = _lookup_price(session, service, resolved + (("regionCode", region),))
+            except Exception:  # no pricing:GetProducts, or an unpriced shape — fall back
+                found = None
+        _PRICE_CACHE[ck] = (found * months, True) if found else (PRICE_DEFAULTS[key], False)
+    return _PRICE_CACHE[ck][0]
+
+
+def price_is_live(key, region, **params):
+    """Whether the price already resolved for these arguments came from the API.
+
+    Read after price(), so a finding can say which of the two numbers the reader
+    is looking at instead of implying a measurement that never happened.
+    """
+    entry = _PRICE_CACHE.get(_cache_key(key, region, params))
+    return bool(entry and entry[1])
 
 
 # --- CloudWatch -------------------------------------------------------------
@@ -310,15 +395,21 @@ def _scan_rds(rds, cw, region, price_of):
         if not score:
             continue
         klass = db.get("DBInstanceClass", "?")
+        shape = rds_shape(db)
+        monthly = price_of("rds", **shape)
+        cost = (
+            f"priced as {klass} {shape['deploymentOption']} on-demand"
+            if price_is_live("rds", region, **shape)
+            else f"cost shown is a db.t3.medium baseline, scale it for {klass}"
+        )
         findings.append(
             finding(
                 "rds-idle",
                 name,
                 region,
                 score,
-                price_of("rds"),
-                f"{klass} {db.get('Engine', '?')} took {int(conns)} connection(s) in 30d "
-                f"(cost shown is a db.t3.medium baseline, scale it for {klass})",
+                monthly,
+                f"{klass} {db.get('Engine', '?')} took {int(conns)} connection(s) in 30d ({cost})",
                 f"aws rds delete-db-instance --region {region} --db-instance-identifier {name} "
                 f"--final-db-snapshot-identifier {name}-final",
                 db.get("TagList"),
