@@ -62,12 +62,16 @@ def scan_regions(regions, session=None, live_pricing=False, workers=8, on_error=
         pending = {pool.submit(scan_region, r, None, live_pricing): r for r in regions}
         for future in as_completed(pending):
             region = pending[future]
-            try:
+            # .exception() rather than try/except around .result(): one bad
+            # region must not lose the other 30, and asking the future what
+            # went wrong says that without catching everything to find out.
+            exc = future.exception()
+            if exc is None:
                 findings.extend(future.result())
-            except Exception as exc:  # one bad region must not lose the other 30
-                failed.append(region)
-                if on_error:
-                    on_error(region, exc)
-                else:
-                    LOGGER.warning("%s: %s", region, exc)
+                continue
+            failed.append(region)
+            if on_error:
+                on_error(region, exc)
+            else:
+                LOGGER.warning("%s: %s", region, exc)
     return findings, failed
