@@ -1,4 +1,5 @@
 """The only code that calls boto3: one _scan_* per resource kind."""
+
 from idle_hunter_lib.metrics import LB_NAMESPACES, cw_sum
 from idle_hunter_lib.models import finding
 from idle_hunter_lib.score import (
@@ -12,6 +13,7 @@ from idle_hunter_lib.score import (
     score_unattached_volume,
     score_unused_ami,
 )
+
 
 def _pages(client, op, key, **kwargs):
     for page in client.get_paginator(op).paginate(**kwargs):

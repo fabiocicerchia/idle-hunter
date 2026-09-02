@@ -3,6 +3,7 @@
 Nothing here talks to AWS and nothing reads a clock beyond `now()`. Every
 score caps below 100 on purpose — a scanner cannot know your intent.
 """
+
 from datetime import datetime, timezone
 
 NAT_IDLE_BYTES = 10 * 1024**2  # 30d of DNS/health-check noise, not real traffic

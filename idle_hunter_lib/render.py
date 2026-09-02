@@ -1,6 +1,8 @@
 """Findings to output. Sorts, filters, formats; never runs a command."""
+
 import json
 from dataclasses import asdict
+
 
 def render(findings, min_confidence=0, show_commands=False):
     rows = [f for f in findings if f.confidence >= max(min_confidence, 1)]
@@ -8,9 +10,7 @@ def render(findings, min_confidence=0, show_commands=False):
     total = sum(f.monthly_usd for f in rows)
     lines = [f"# idle-hunter report — {len(rows)} finding(s), ~${total:,.0f}/mo reclaimable\n"]
     for f in rows:
-        lines.append(
-            f"[{f.confidence:3d}%] {f.kind}  {f.id}  ({f.region})  ~${f.monthly_usd}/mo"
-        )
+        lines.append(f"[{f.confidence:3d}%] {f.kind}  {f.id}  ({f.region})  ~${f.monthly_usd}/mo")
         lines.append(f"       {f.note}")
         if show_commands and f.command:
             lines.append(f"       $ {f.command}")

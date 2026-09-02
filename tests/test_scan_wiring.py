@@ -190,9 +190,7 @@ def test_scan_region_finds_one_of_each_kind():
 
 
 def test_only_genuinely_orphaned_snapshots_are_reported():
-    orphans = [
-        f for f in scan_region("eu-west-1", FakeSession()) if f.kind == "snapshot-orphaned"
-    ]
+    orphans = [f for f in scan_region("eu-west-1", FakeSession()) if f.kind == "snapshot-orphaned"]
     # snap-live's volume still exists; snap-ami is counted by the AMI finding instead
     assert [f.id for f in orphans] == ["snap-orphan"]
 

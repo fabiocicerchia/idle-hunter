@@ -1,4 +1,5 @@
 """What a finding is, and the one place IaC ownership lowers a score."""
+
 from dataclasses import dataclass
 
 IAC_PENALTY = 30
@@ -26,7 +27,12 @@ def iac_managed(tags):
             return True
         if "terraform" in key or "pulumi" in key or key.startswith("cdk"):
             return True
-        is_ownership_key = key.replace("_", "-") in ("managed-by", "provisioner", "iac", "created-by")
+        is_ownership_key = key.replace("_", "-") in (
+            "managed-by",
+            "provisioner",
+            "iac",
+            "created-by",
+        )
         names_an_iac_tool = any(
             tool in val for tool in ("terraform", "cloudformation", "cdk", "pulumi", "ansible")
         )

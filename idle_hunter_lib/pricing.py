@@ -1,4 +1,5 @@
 """Monthly cost per unit: built-in estimates, or the Pricing API with --live-pricing."""
+
 import json
 
 # The Pricing API is only served from us-east-1, whatever region is being priced.

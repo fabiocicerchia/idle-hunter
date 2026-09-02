@@ -1,4 +1,5 @@
 """CloudWatch reads. A metric with no datapoints is unknown, never zero."""
+
 from datetime import datetime, timedelta, timezone
 
 LB_NAMESPACES = {
