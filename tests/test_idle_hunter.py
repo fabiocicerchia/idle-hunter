@@ -69,7 +69,7 @@ def test_iac_managed_tags_lower_the_score():
         "n",
         tags=[{"Key": "terraform:module", "Value": "vpc"}],
     )
-    assert f["confidence"] == 60 and "IaC-managed" in f["note"]
+    assert f.confidence == 60 and "IaC-managed" in f.note
 
 
 def test_price_falls_back_to_estimates_without_live_lookup():

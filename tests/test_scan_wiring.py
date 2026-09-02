@@ -7,7 +7,7 @@ AMI still backs it.
 
 from datetime import datetime, timedelta, timezone
 
-from idle_hunter import scan_region
+from idle_hunter import Finding, scan_region
 
 
 def ago(n):
@@ -162,7 +162,7 @@ class FakeSession:
 
 def test_scan_region_finds_one_of_each_kind():
     findings = scan_region("eu-west-1", FakeSession())
-    by_kind = {f["kind"]: f for f in findings}
+    by_kind = {f.kind: f for f in findings}
 
     assert set(by_kind) == {
         "ebs-unattached",
@@ -174,31 +174,31 @@ def test_scan_region_finds_one_of_each_kind():
         "eni-unattached",
         "rds-idle",
     }
-    assert by_kind["ebs-unattached"]["id"] == "vol-dead"  # in-use volume is not a finding
-    assert by_kind["ebs-unattached"]["confidence"] == 95
-    assert by_kind["eip-unassociated"]["id"] == "eipalloc-1"  # associated EIP is not a finding
-    assert by_kind["nat-idle"]["confidence"] == 85
-    assert by_kind["ami-unused"]["id"] == "ami-unused"  # terminated instance doesn't count
-    assert by_kind["elb-no-targets"]["confidence"] == 95 - 30  # zero traffic, terraform-tagged
-    assert "IaC-managed" in by_kind["elb-no-targets"]["note"]
+    assert by_kind["ebs-unattached"].id == "vol-dead"  # in-use volume is not a finding
+    assert by_kind["ebs-unattached"].confidence == 95
+    assert by_kind["eip-unassociated"].id == "eipalloc-1"  # associated EIP is not a finding
+    assert by_kind["nat-idle"].confidence == 85
+    assert by_kind["ami-unused"].id == "ami-unused"  # terminated instance doesn't count
+    assert by_kind["elb-no-targets"].confidence == 95 - 30  # zero traffic, terraform-tagged
+    assert "IaC-managed" in by_kind["elb-no-targets"].note
     # a service-owned (RequesterManaged) ENI is never reported
-    assert by_kind["eni-unattached"]["id"] == "eni-orphan"
-    assert by_kind["eni-unattached"]["monthly_usd"] == 0.0  # free, but it pins its subnet
-    assert by_kind["rds-idle"]["id"] == "db-idle"  # a "creating" instance is skipped
-    assert by_kind["rds-idle"]["confidence"] == 80  # zero connections in 30d
+    assert by_kind["eni-unattached"].id == "eni-orphan"
+    assert by_kind["eni-unattached"].monthly_usd == 0.0  # free, but it pins its subnet
+    assert by_kind["rds-idle"].id == "db-idle"  # a "creating" instance is skipped
+    assert by_kind["rds-idle"].confidence == 80  # zero connections in 30d
 
 
 def test_only_genuinely_orphaned_snapshots_are_reported():
     orphans = [
-        f for f in scan_region("eu-west-1", FakeSession()) if f["kind"] == "snapshot-orphaned"
+        f for f in scan_region("eu-west-1", FakeSession()) if f.kind == "snapshot-orphaned"
     ]
     # snap-live's volume still exists; snap-ami is counted by the AMI finding instead
-    assert [f["id"] for f in orphans] == ["snap-orphan"]
+    assert [f.id for f in orphans] == ["snap-orphan"]
 
 
 if __name__ == "__main__":
     for f in scan_region("eu-west-1", FakeSession()):
-        print(f"{f['confidence']:3d} {f['kind']:20s} {f['id']:15s} ${f['monthly_usd']}")
+        print(f"{f.confidence:3d} {f.kind:20s} {f.id:15s} ${f.monthly_usd}")
 
 
 def test_scan_regions_runs_in_parallel_and_survives_one_bad_region(monkeypatch):
@@ -211,16 +211,7 @@ def test_scan_regions_runs_in_parallel_and_survives_one_bad_region(monkeypatch):
         seen.append(region)
         if region == "eu-broken-1":
             raise RuntimeError("AccessDenied")
-        return [
-            {
-                "region": region,
-                "kind": "ebs-unattached",
-                "id": f"vol-{region}",
-                "confidence": 90,
-                "monthly_usd": 1.0,
-                "note": "n",
-            }
-        ]
+        return [Finding("ebs-unattached", f"vol-{region}", region, 90, 1.0, "n")]
 
     monkeypatch.setattr(idle_hunter, "scan_region", fake_scan_region)
 
@@ -232,7 +223,7 @@ def test_scan_regions_runs_in_parallel_and_survives_one_bad_region(monkeypatch):
         on_error=lambda r, e: errors.append((r, str(e))),
     )
 
-    assert sorted(f["region"] for f in findings) == ["eu-west-1", "us-east-1"]
+    assert sorted(f.region for f in findings) == ["eu-west-1", "us-east-1"]
     assert failed == ["eu-broken-1"]
     assert errors == [("eu-broken-1", "AccessDenied")]
     assert sorted(seen) == ["eu-broken-1", "eu-west-1", "us-east-1"]

@@ -20,6 +20,7 @@ import argparse
 import json
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta, timezone
 from functools import partial
 
@@ -223,19 +224,24 @@ def score_unused_ami(image, in_use):
     return min(40 + age_days(image["CreationDate"]) // 30 * 5, 75)
 
 
+@dataclass(frozen=True)
+class Finding:
+    """One zombie candidate. Field order is the JSON output order."""
+
+    kind: str
+    id: str
+    region: str
+    confidence: int
+    monthly_usd: float
+    note: str
+    command: str | None = None
+
+
 def finding(kind, rid, region, score, monthly_usd, note, command=None, tags=None):
     if iac_managed(tags):
         score = max(score - IAC_PENALTY, 5)
         note += " — IaC-managed (delete via the stack, not the CLI)"
-    return {
-        "kind": kind,
-        "id": rid,
-        "region": region,
-        "confidence": score,
-        "monthly_usd": round(monthly_usd, 2),
-        "note": note,
-        "command": command,
-    }
+    return Finding(kind, rid, region, score, round(monthly_usd, 2), note, command)
 
 
 # --- the AWS half -----------------------------------------------------------
@@ -539,18 +545,17 @@ def scan_regions(regions, session=None, live_pricing=False, workers=8, on_error=
 
 
 def render(findings, min_confidence=0, show_commands=False):
-    rows = [f for f in findings if f["confidence"] >= max(min_confidence, 1)]
-    rows.sort(key=lambda f: (-f["confidence"], -f["monthly_usd"]))
-    total = sum(f["monthly_usd"] for f in rows)
+    rows = [f for f in findings if f.confidence >= max(min_confidence, 1)]
+    rows.sort(key=lambda f: (-f.confidence, -f.monthly_usd))
+    total = sum(f.monthly_usd for f in rows)
     lines = [f"# idle-hunter report — {len(rows)} finding(s), ~${total:,.0f}/mo reclaimable\n"]
     for f in rows:
         lines.append(
-            f"[{f['confidence']:3d}%] {f['kind']}  {f['id']}  "
-            f"({f['region']})  ~${f['monthly_usd']}/mo"
+            f"[{f.confidence:3d}%] {f.kind}  {f.id}  ({f.region})  ~${f.monthly_usd}/mo"
         )
-        lines.append(f"       {f['note']}")
-        if show_commands and f.get("command"):
-            lines.append(f"       $ {f['command']}")
+        lines.append(f"       {f.note}")
+        if show_commands and f.command:
+            lines.append(f"       $ {f.command}")
     return "\n".join(lines)
 
 
@@ -599,13 +604,13 @@ def main(argv=None):
     findings, failed = scan_regions(regions, session, args.live_pricing, args.workers)
     # Completion order is non-deterministic once regions run in parallel, so
     # sort before emitting: two runs over the same estate must diff cleanly.
-    findings.sort(key=lambda f: (f["region"], f["kind"], str(f["id"])))
+    findings.sort(key=lambda f: (f.region, f.kind, str(f.id)))
 
     if args.json:
         # --min-confidence applies here too: a script generated from this output
         # must not contain deletes the caller asked to be filtered out.
         json.dump(
-            [f for f in findings if f["confidence"] >= args.min_confidence],
+            [asdict(f) for f in findings if f.confidence >= args.min_confidence],
             sys.stdout,
             indent=2,
             default=str,
