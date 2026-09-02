@@ -342,16 +342,19 @@ def _scan_rds(rds, cw, region, price_of):
     return findings
 
 
+def _registered_targets(elb, lb_arn):
+    """Targets registered across every target group of one load balancer."""
+    total = 0
+    for tg in elb.describe_target_groups(LoadBalancerArn=lb_arn)["TargetGroups"]:
+        health = elb.describe_target_health(TargetGroupArn=tg["TargetGroupArn"])
+        total += len(health["TargetHealthDescriptions"])
+    return total
+
+
 def _scan_load_balancers(elb, cw, region, price_of):
     findings = []
     for lb in _pages(elb, "describe_load_balancers", "LoadBalancers"):
-        targets = 0
-        for tg in elb.describe_target_groups(LoadBalancerArn=lb["LoadBalancerArn"])["TargetGroups"]:
-            targets += len(
-                elb.describe_target_health(TargetGroupArn=tg["TargetGroupArn"])[
-                    "TargetHealthDescriptions"
-                ]
-            )
+        targets = _registered_targets(elb, lb["LoadBalancerArn"])
         traffic = None
         if not targets and lb["Type"] in LB_NAMESPACES:
             traffic = cw_sum(
@@ -361,24 +364,25 @@ def _scan_load_balancers(elb, cw, region, price_of):
                 [("LoadBalancer", lb["LoadBalancerArn"].split("loadbalancer/")[-1])],
             )
         score = score_empty_lb(lb, targets, traffic)
-        if score:
-            idle_note = ", no traffic in 30d" if traffic == 0 else ""
-            tags = elb.describe_tags(  # not in describe_load_balancers; only fetched for findings
-                ResourceArns=[lb["LoadBalancerArn"]]
-            )["TagDescriptions"][0]["Tags"]
-            findings.append(
-                finding(
-                    "elb-no-targets",
-                    lb["LoadBalancerName"],
-                    region,
-                    score,
-                    price_of("elb"),
-                    f"{lb['Type']} LB with 0 registered targets{idle_note}",
-                    f"aws elbv2 delete-load-balancer --region {region} "
-                    f"--load-balancer-arn {lb['LoadBalancerArn']}",
-                    tags,
-                )
+        if not score:
+            continue
+        idle_note = ", no traffic in 30d" if traffic == 0 else ""
+        tags = elb.describe_tags(  # not in describe_load_balancers; only fetched for findings
+            ResourceArns=[lb["LoadBalancerArn"]]
+        )["TagDescriptions"][0]["Tags"]
+        findings.append(
+            finding(
+                "elb-no-targets",
+                lb["LoadBalancerName"],
+                region,
+                score,
+                price_of("elb"),
+                f"{lb['Type']} LB with 0 registered targets{idle_note}",
+                f"aws elbv2 delete-load-balancer --region {region} "
+                f"--load-balancer-arn {lb['LoadBalancerArn']}",
+                tags,
             )
+        )
     return findings
 
 
@@ -393,21 +397,33 @@ def _scan_nat_gateways(ec2, cw, region, price_of):
         nat_id = nat["NatGatewayId"]
         out = cw_sum(cw, "AWS/NATGateway", "BytesOutToDestination", [("NatGatewayId", nat_id)])
         score = score_idle_nat(nat, out)
-        if score:
-            mib = (out or 0) / 1024**2
-            findings.append(
-                finding(
-                    "nat-idle",
-                    nat_id,
-                    region,
-                    score,
-                    price_of("nat"),
-                    f"NAT gateway sent {mib:.1f} MiB in 30d, up {age_days(nat['CreateTime'])}d",
-                    f"aws ec2 delete-nat-gateway --region {region} --nat-gateway-id {nat_id}",
-                    nat.get("Tags"),
-                )
+        if not score:
+            continue
+        mib = (out or 0) / 1024**2
+        findings.append(
+            finding(
+                "nat-idle",
+                nat_id,
+                region,
+                score,
+                price_of("nat"),
+                f"NAT gateway sent {mib:.1f} MiB in 30d, up {age_days(nat['CreateTime'])}d",
+                f"aws ec2 delete-nat-gateway --region {region} --nat-gateway-id {nat_id}",
+                nat.get("Tags"),
             )
+        )
     return findings
+
+
+def _backing_snapshots(image):
+    """The snapshot ids an AMI is built from, and their total size in GiB."""
+    snapshot_ids, gb = set(), 0
+    for bdm in image.get("BlockDeviceMappings", []):
+        ebs = bdm.get("Ebs", {})
+        if "SnapshotId" in ebs:
+            snapshot_ids.add(ebs["SnapshotId"])
+            gb += ebs.get("VolumeSize", 0)
+    return snapshot_ids, gb
 
 
 def _scan_images(ec2, region, price_of):
@@ -422,27 +438,24 @@ def _scan_images(ec2, region, price_of):
     # still read as unused — add those lookups if that produces false positives.
     findings, ami_snapshots = [], set()
     for image in _pages(ec2, "describe_images", "Images", Owners=["self"]):
-        gb = 0
-        for bdm in image.get("BlockDeviceMappings", []):
-            ebs = bdm.get("Ebs", {})
-            if "SnapshotId" in ebs:
-                ami_snapshots.add(ebs["SnapshotId"])
-                gb += ebs.get("VolumeSize", 0)
+        snapshot_ids, gb = _backing_snapshots(image)
+        ami_snapshots |= snapshot_ids
         score = score_unused_ami(image, image["ImageId"] in in_use)
-        if score:
-            findings.append(
-                finding(
-                    "ami-unused",
-                    image["ImageId"],
-                    region,
-                    score,
-                    gb * price_of("snapshot_gb"),
-                    f"{image.get('Name', 'unnamed')}: no instance uses it, "
-                    f"registered {age_days(image['CreationDate'])}d ago, {gb} GiB of snapshots",
-                    f"aws ec2 deregister-image --region {region} --image-id {image['ImageId']}",
-                    image.get("Tags"),
-                )
+        if not score:
+            continue
+        findings.append(
+            finding(
+                "ami-unused",
+                image["ImageId"],
+                region,
+                score,
+                gb * price_of("snapshot_gb"),
+                f"{image.get('Name', 'unnamed')}: no instance uses it, "
+                f"registered {age_days(image['CreationDate'])}d ago, {gb} GiB of snapshots",
+                f"aws ec2 deregister-image --region {region} --image-id {image['ImageId']}",
+                image.get("Tags"),
             )
+        )
     return findings, ami_snapshots
 
 
@@ -453,20 +466,21 @@ def _scan_snapshots(ec2, region, price_of, live_volume_ids, ami_snapshots):
             continue  # backing a registered AMI — that AMI is the finding, not this
         gb = snap.get("VolumeSize", 0)
         score = score_stale_snapshot(snap, snap.get("VolumeId") in live_volume_ids)
-        if score:
-            findings.append(
-                finding(
-                    "snapshot-orphaned",
-                    snap["SnapshotId"],
-                    region,
-                    score,
-                    gb * price_of("snapshot_gb"),
-                    f"{gb} GiB, source {snap.get('VolumeId', '?')} no longer exists, "
-                    f"taken {age_days(snap['StartTime'])}d ago",
-                    f"aws ec2 delete-snapshot --region {region} --snapshot-id {snap['SnapshotId']}",
-                    snap.get("Tags"),
-                )
+        if not score:
+            continue
+        findings.append(
+            finding(
+                "snapshot-orphaned",
+                snap["SnapshotId"],
+                region,
+                score,
+                gb * price_of("snapshot_gb"),
+                f"{gb} GiB, source {snap.get('VolumeId', '?')} no longer exists, "
+                f"taken {age_days(snap['StartTime'])}d ago",
+                f"aws ec2 delete-snapshot --region {region} --snapshot-id {snap['SnapshotId']}",
+                snap.get("Tags"),
             )
+        )
     return findings
 
 
@@ -540,7 +554,7 @@ def render(findings, min_confidence=0, show_commands=False):
     return "\n".join(lines)
 
 
-def main(argv=None):
+def _build_parser():
     parser = argparse.ArgumentParser(
         prog="idle-hunter",
         description=__doc__,
@@ -568,7 +582,11 @@ def main(argv=None):
         "lower it if the account is being throttled)",
     )
     scan.add_argument("--json", action="store_true")
-    args = parser.parse_args(argv)
+    return parser
+
+
+def main(argv=None):
+    args = _build_parser().parse_args(argv)
 
     import boto3
 
