@@ -43,9 +43,10 @@ def iac_managed(tags):
             return True
         if "terraform" in key or "pulumi" in key or key.startswith("cdk"):
             return True
-        if key.replace("_", "-") in ("managed-by", "provisioner", "iac", "created-by"):
-            if any(x in val for x in ("terraform", "cloudformation", "cdk", "pulumi", "ansible")):
-                return True
+        if key.replace("_", "-") in ("managed-by", "provisioner", "iac", "created-by") and any(
+            x in val for x in ("terraform", "cloudformation", "cdk", "pulumi", "ansible")
+        ):
+            return True
     return False
 
 
@@ -178,7 +179,7 @@ def price(key, region, session=None, live=False, **params):
         if all(v for _, v in resolved):
             try:
                 found = _lookup_price(session, service, resolved + (("regionCode", region),))
-            except Exception:  # no pricing:GetProducts, or an unpriced shape — fall back
+            except Exception:  # noqa: BLE001 — no pricing:GetProducts, or an unpriced shape
                 found = None
         _PRICE_CACHE[ck] = (found * months, True) if found else (PRICE_DEFAULTS[key], False)
     return _PRICE_CACHE[ck][0]
@@ -598,7 +599,7 @@ def scan_regions(regions, session=None, live_pricing=False, workers=8, on_error=
             region = pending[future]
             try:
                 findings.extend(future.result())
-            except Exception as exc:  # one bad region must not lose the other 30
+            except Exception as exc:  # noqa: BLE001 — one bad region must not lose the other 30
                 failed.append(region)
                 if on_error:
                     on_error(region, exc)
