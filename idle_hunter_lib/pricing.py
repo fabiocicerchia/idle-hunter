@@ -2,6 +2,8 @@
 
 import json
 
+from botocore.exceptions import BotoCoreError, ClientError
+
 # The Pricing API is only served from us-east-1, whatever region is being priced.
 # https://docs.aws.amazon.com/awsaccountbilling/latest/aboutv2/price-changes.html
 PRICING_API_REGION = "us-east-1"
@@ -60,9 +62,13 @@ def price(key, region, session=None, live=False):
         return PRICE_DEFAULTS[key]
     if (key, region) not in _PRICE_CACHE:
         service, filters, months = PRICE_QUERIES[key]
+        # No pricing:GetProducts, no credentials, no endpoint, or a price
+        # document that does not parse — fall back to the built-in estimate.
+        # Named rather than blanket: a bug in _lookup_price should surface,
+        # not quietly read as "this shape has no price".
         try:
             found = _lookup_price(session, service, filters + (("regionCode", region),))
-        except Exception:  # no pricing:GetProducts, or an unpriced shape — fall back
+        except (BotoCoreError, ClientError, ValueError, TypeError):
             found = None
         _PRICE_CACHE[(key, region)] = found * months if found else PRICE_DEFAULTS[key]
     return _PRICE_CACHE[(key, region)]

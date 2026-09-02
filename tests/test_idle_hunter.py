@@ -1,5 +1,7 @@
 from datetime import datetime, timedelta, timezone
 
+from botocore.exceptions import ClientError
+
 from idle_hunter_lib.models import finding, iac_managed
 from idle_hunter_lib.pricing import price
 from idle_hunter_lib.render import render
@@ -74,11 +76,11 @@ def test_iac_managed_tags_lower_the_score():
 def test_price_falls_back_to_estimates_without_live_lookup():
     assert price("elb", "eu-west-1") == 18.0
 
-    class Boom:
+    class Denied:
         def client(self, *a, **k):
-            raise RuntimeError("no pricing:GetProducts")
+            raise ClientError({"Error": {"Code": "AccessDenied"}}, "GetProducts")
 
-    assert price("elb", "eu-west-1", session=Boom(), live=True) == 18.0
+    assert price("elb", "eu-west-1", session=Denied(), live=True) == 18.0
 
 
 def test_render_sorts_and_filters():
