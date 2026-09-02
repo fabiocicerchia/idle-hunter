@@ -23,31 +23,15 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
 from functools import partial
 
-
-def age_days(created):
-    if isinstance(created, str):
-        created = datetime.fromisoformat(created.replace("Z", "+00:00"))
-    return (datetime.now(timezone.utc) - created).days
-
+# --- regions ----------------------------------------------------------------
+# What --region defaults to, and the region --all-regions enumerates from.
+DEFAULT_REGION = "us-east-1"
+# The Pricing API is only served from us-east-1, whatever region is being priced.
+# https://docs.aws.amazon.com/awsaccountbilling/latest/aboutv2/price-changes.html
+PRICING_API_REGION = "us-east-1"
 
 # --- IaC ownership ----------------------------------------------------------
 IAC_PENALTY = 30
-
-
-def iac_managed(tags):
-    """True if tags say a stack owns this — deleting it by hand just gets reverted."""
-    for t in tags or []:
-        key = t.get("Key", "").lower()
-        val = str(t.get("Value", "")).lower()
-        if key.startswith(("aws:cloudformation:", "elasticbeanstalk:", "eks:", "kubernetes.io/")):
-            return True
-        if "terraform" in key or "pulumi" in key or key.startswith("cdk"):
-            return True
-        if key.replace("_", "-") in ("managed-by", "provisioner", "iac", "created-by"):
-            if any(x in val for x in ("terraform", "cloudformation", "cdk", "pulumi", "ansible")):
-                return True
-    return False
-
 
 # --- pricing ----------------------------------------------------------------
 # Rough us-east-1 list prices, monthly per unit. Used unless --live-pricing.
@@ -77,10 +61,42 @@ PRICE_QUERIES = {
 
 _PRICE_CACHE = {}
 
+# --- idleness thresholds ----------------------------------------------------
+NAT_IDLE_BYTES = 10 * 1024**2  # 30d of DNS/health-check noise, not real traffic
+RDS_IDLE_CONNECTIONS = 30  # 30d: a monitoring probe once a day, not an application
+
+# --- CloudWatch namespaces --------------------------------------------------
+LB_NAMESPACES = {
+    "application": "AWS/ApplicationELB",
+    "network": "AWS/NetworkELB",
+    "gateway": "AWS/GatewayELB",
+}
+
+
+def age_days(created):
+    if isinstance(created, str):
+        created = datetime.fromisoformat(created.replace("Z", "+00:00"))
+    return (datetime.now(timezone.utc) - created).days
+
+
+def iac_managed(tags):
+    """True if tags say a stack owns this — deleting it by hand just gets reverted."""
+    for t in tags or []:
+        key = t.get("Key", "").lower()
+        val = str(t.get("Value", "")).lower()
+        if key.startswith(("aws:cloudformation:", "elasticbeanstalk:", "eks:", "kubernetes.io/")):
+            return True
+        if "terraform" in key or "pulumi" in key or key.startswith("cdk"):
+            return True
+        if key.replace("_", "-") in ("managed-by", "provisioner", "iac", "created-by"):
+            if any(x in val for x in ("terraform", "cloudformation", "cdk", "pulumi", "ansible")):
+                return True
+    return False
+
 
 def _lookup_price(session, service_code, filters):
     """First positive on-demand USD price matching `filters`, or None."""
-    client = session.client("pricing", region_name="us-east-1")
+    client = session.client("pricing", region_name=PRICING_API_REGION)
     resp = client.get_products(
         ServiceCode=service_code,
         Filters=[{"Type": "TERM_MATCH", "Field": k, "Value": v} for k, v in filters],
@@ -131,10 +147,6 @@ def cw_sum(cw, namespace, metric, dimensions, days=30):
 
 
 # --- scoring (pure) ---------------------------------------------------------
-NAT_IDLE_BYTES = 10 * 1024**2  # 30d of DNS/health-check noise, not real traffic
-RDS_IDLE_CONNECTIONS = 30  # 30d: a monitoring probe once a day, not an application
-
-
 def score_unattached_volume(vol):
     """Unattached EBS volume: base 50, +age, +unnamed, capped 95."""
     score = 50
@@ -325,13 +337,6 @@ def _scan_rds(rds, cw, region, price_of):
             )
         )
     return findings
-
-
-LB_NAMESPACES = {
-    "application": "AWS/ApplicationELB",
-    "network": "AWS/NetworkELB",
-    "gateway": "AWS/GatewayELB",
-}
 
 
 def _scan_load_balancers(elb, cw, region, price_of):
@@ -540,7 +545,7 @@ def main(argv=None):
     )
     sub = p.add_subparsers(dest="cmd", required=True)
     s = sub.add_parser("scan", help="scan for zombie resources")
-    s.add_argument("--region", default="us-east-1")
+    s.add_argument("--region", default=DEFAULT_REGION)
     s.add_argument("--all-regions", action="store_true")
     s.add_argument("--min-confidence", type=int, default=0)
     s.add_argument(
@@ -567,7 +572,7 @@ def main(argv=None):
     session = boto3.Session()
     regions = [args.region]
     if args.all_regions:
-        ec2 = session.client("ec2", region_name="us-east-1")
+        ec2 = session.client("ec2", region_name=DEFAULT_REGION)
         regions = [r["RegionName"] for r in ec2.describe_regions()["Regions"]]
 
     findings, failed = scan_regions(regions, session, args.live_pricing, args.workers)
