@@ -193,7 +193,13 @@ def _scan_nat_gateways(ec2, cw, region, price_of):
 
 def _backing_snapshots(image):
     """The snapshot ids an AMI is built from, and their total size in GiB."""
-    snapshot_ids, gb = set(), 0
+    # Bound separately, not as `snapshot_ids, gb = set(), 0`: the pinned
+    # greenlint (v0.1.4) only reads single-name assignments when it works out
+    # what a name holds, so the tuple form left `gb` untyped and `gb += ...`
+    # below read as a sequence rebuild (GL007) rather than the integer sum it
+    # is. Fixed upstream in greenlint v0.8.3, which destructures tuple targets.
+    snapshot_ids = set()
+    gb = 0
     for bdm in image.get("BlockDeviceMappings", []):
         ebs = bdm.get("Ebs", {})
         if "SnapshotId" in ebs:
