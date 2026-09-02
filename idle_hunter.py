@@ -81,16 +81,19 @@ def age_days(created):
 
 def iac_managed(tags):
     """True if tags say a stack owns this — deleting it by hand just gets reverted."""
-    for t in tags or []:
-        key = t.get("Key", "").lower()
-        val = str(t.get("Value", "")).lower()
+    for tag in tags or []:
+        key = tag.get("Key", "").lower()
+        val = str(tag.get("Value", "")).lower()
         if key.startswith(("aws:cloudformation:", "elasticbeanstalk:", "eks:", "kubernetes.io/")):
             return True
         if "terraform" in key or "pulumi" in key or key.startswith("cdk"):
             return True
-        if key.replace("_", "-") in ("managed-by", "provisioner", "iac", "created-by"):
-            if any(x in val for x in ("terraform", "cloudformation", "cdk", "pulumi", "ansible")):
-                return True
+        is_ownership_key = key.replace("_", "-") in ("managed-by", "provisioner", "iac", "created-by")
+        names_an_iac_tool = any(
+            tool in val for tool in ("terraform", "cloudformation", "cdk", "pulumi", "ansible")
+        )
+        if is_ownership_key and names_an_iac_tool:
+            return True
     return False
 
 
@@ -152,7 +155,7 @@ def score_unattached_volume(vol):
     score = 50
     days = age_days(vol["CreateTime"])
     score += min(days // 7 * 5, 35)  # +5/week unattached-ish, cap +35
-    if not any(t["Key"] == "Name" for t in vol.get("Tags", [])):
+    if not any(tag["Key"] == "Name" for tag in vol.get("Tags", [])):
         score += 10  # unnamed → likely forgotten
     return min(score, 95)
 
@@ -321,7 +324,7 @@ def _scan_rds(rds, cw, region, price_of):
         score = score_idle_rds(db, conns)
         if not score:
             continue
-        klass = db.get("DBInstanceClass", "?")
+        instance_class = db.get("DBInstanceClass", "?")
         findings.append(
             finding(
                 "rds-idle",
@@ -329,8 +332,8 @@ def _scan_rds(rds, cw, region, price_of):
                 region,
                 score,
                 price_of("rds"),
-                f"{klass} {db.get('Engine', '?')} took {int(conns)} connection(s) in 30d "
-                f"(cost shown is a db.t3.medium baseline, scale it for {klass})",
+                f"{instance_class} {db.get('Engine', '?')} took {int(conns)} connection(s) in 30d "
+                f"(cost shown is a db.t3.medium baseline, scale it for {instance_class})",
                 f"aws rds delete-db-instance --region {region} --db-instance-identifier {name} "
                 f"--final-db-snapshot-identifier {name}-final",
                 db.get("TagList"),
@@ -359,7 +362,7 @@ def _scan_load_balancers(elb, cw, region, price_of):
             )
         score = score_empty_lb(lb, targets, traffic)
         if score:
-            idle = ", no traffic in 30d" if traffic == 0 else ""
+            idle_note = ", no traffic in 30d" if traffic == 0 else ""
             tags = elb.describe_tags(  # not in describe_load_balancers; only fetched for findings
                 ResourceArns=[lb["LoadBalancerArn"]]
             )["TagDescriptions"][0]["Tags"]
@@ -370,7 +373,7 @@ def _scan_load_balancers(elb, cw, region, price_of):
                     region,
                     score,
                     price_of("elb"),
-                    f"{lb['Type']} LB with 0 registered targets{idle}",
+                    f"{lb['Type']} LB with 0 registered targets{idle_note}",
                     f"aws elbv2 delete-load-balancer --region {region} "
                     f"--load-balancer-arn {lb['LoadBalancerArn']}",
                     tags,
@@ -538,25 +541,25 @@ def render(findings, min_confidence=0, show_commands=False):
 
 
 def main(argv=None):
-    p = argparse.ArgumentParser(
+    parser = argparse.ArgumentParser(
         prog="idle-hunter",
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    sub = p.add_subparsers(dest="cmd", required=True)
-    s = sub.add_parser("scan", help="scan for zombie resources")
-    s.add_argument("--region", default=DEFAULT_REGION)
-    s.add_argument("--all-regions", action="store_true")
-    s.add_argument("--min-confidence", type=int, default=0)
-    s.add_argument(
+    subcommands = parser.add_subparsers(dest="cmd", required=True)
+    scan = subcommands.add_parser("scan", help="scan for zombie resources")
+    scan.add_argument("--region", default=DEFAULT_REGION)
+    scan.add_argument("--all-regions", action="store_true")
+    scan.add_argument("--min-confidence", type=int, default=0)
+    scan.add_argument(
         "--commands", action="store_true", help="print deletion commands (never executed)"
     )
-    s.add_argument(
+    scan.add_argument(
         "--live-pricing",
         action="store_true",
         help="look up real prices via the Pricing API (needs pricing:GetProducts)",
     )
-    s.add_argument(
+    scan.add_argument(
         "--workers",
         type=int,
         default=8,
@@ -564,8 +567,8 @@ def main(argv=None):
         help="regions scanned in parallel with --all-regions (default 8; "
         "lower it if the account is being throttled)",
     )
-    s.add_argument("--json", action="store_true")
-    args = p.parse_args(argv)
+    scan.add_argument("--json", action="store_true")
+    args = parser.parse_args(argv)
 
     import boto3
 
