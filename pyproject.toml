@@ -26,6 +26,7 @@ idle-hunter = "idle_hunter:main"
 
 [tool.setuptools]
 py-modules = ["idle_hunter"]
+packages = ["idle_hunter_lib"]
 
 [tool.ruff]
 line-length = 100

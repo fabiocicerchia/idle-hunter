@@ -1,11 +1,10 @@
 from datetime import datetime, timedelta, timezone
 
-from idle_hunter import (
+from idle_hunter_lib.models import finding, iac_managed
+from idle_hunter_lib.pricing import price
+from idle_hunter_lib.render import render
+from idle_hunter_lib.score import (
     NAT_IDLE_BYTES,
-    finding,
-    iac_managed,
-    price,
-    render,
     score_empty_lb,
     score_idle_nat,
     score_stale_snapshot,
@@ -93,7 +92,7 @@ def test_render_sorts_and_filters():
 
 
 def test_eni_score_zero_when_a_service_owns_it():
-    from idle_hunter import score_unattached_eni
+    from idle_hunter_lib.score import score_unattached_eni
 
     assert score_unattached_eni({"Status": "available"}) == 85
     # RequesterManaged is not low confidence, it is the wrong resource entirely
@@ -102,7 +101,7 @@ def test_eni_score_zero_when_a_service_owns_it():
 
 
 def test_rds_score_treats_missing_metrics_as_unknown():
-    from idle_hunter import score_idle_rds
+    from idle_hunter_lib.score import score_idle_rds
 
     assert score_idle_rds({}, 0) == 80  # nothing connected in 30 days
     assert score_idle_rds({}, 5) == 55  # below the noise floor

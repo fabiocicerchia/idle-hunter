@@ -7,7 +7,8 @@ AMI still backs it.
 
 from datetime import datetime, timedelta, timezone
 
-from idle_hunter import Finding, scan_region
+from idle_hunter_lib.models import Finding
+from idle_hunter_lib.regions import scan_region
 
 
 def ago(n):
@@ -203,7 +204,7 @@ if __name__ == "__main__":
 
 def test_scan_regions_runs_in_parallel_and_survives_one_bad_region(monkeypatch):
     """A region that raises is reported and skipped, not fatal to the sweep."""
-    import idle_hunter
+    from idle_hunter_lib import regions
 
     seen = []
 
@@ -213,10 +214,10 @@ def test_scan_regions_runs_in_parallel_and_survives_one_bad_region(monkeypatch):
             raise RuntimeError("AccessDenied")
         return [Finding("ebs-unattached", f"vol-{region}", region, 90, 1.0, "n")]
 
-    monkeypatch.setattr(idle_hunter, "scan_region", fake_scan_region)
+    monkeypatch.setattr(regions, "scan_region", fake_scan_region)
 
     errors = []
-    findings, failed = idle_hunter.scan_regions(
+    findings, failed = regions.scan_regions(
         ["eu-west-1", "eu-broken-1", "us-east-1"],
         live_pricing=False,
         workers=3,
@@ -231,7 +232,7 @@ def test_scan_regions_runs_in_parallel_and_survives_one_bad_region(monkeypatch):
 
 def test_single_region_does_not_start_a_pool(monkeypatch):
     """One region keeps the caller's session — no reason to build a second one."""
-    import idle_hunter
+    from idle_hunter_lib import regions
 
     used = {}
 
@@ -239,9 +240,9 @@ def test_single_region_does_not_start_a_pool(monkeypatch):
         used["session"] = session
         return []
 
-    monkeypatch.setattr(idle_hunter, "scan_region", fake_scan_region)
+    monkeypatch.setattr(regions, "scan_region", fake_scan_region)
     sentinel = object()
-    findings, failed = idle_hunter.scan_regions(["eu-west-1"], session=sentinel)
+    findings, failed = regions.scan_regions(["eu-west-1"], session=sentinel)
 
     assert findings == [] and failed == []
     assert used["session"] is sentinel
