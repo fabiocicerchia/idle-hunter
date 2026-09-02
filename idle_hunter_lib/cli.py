@@ -16,10 +16,13 @@ output is a report (optionally with ready-to-review `aws` CLI commands).
 """
 
 import argparse
+import logging
 import sys
 
 from idle_hunter_lib.regions import scan_regions
 from idle_hunter_lib.render import render, render_json
+
+LOGGER = logging.getLogger(__name__)
 
 # What --region defaults to, and the region --all-regions enumerates from.
 DEFAULT_REGION = "us-east-1"
@@ -57,6 +60,8 @@ def _build_parser():
 
 
 def main(argv=None):
+    # One logger for the process: diagnostics on stderr, results on stdout.
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s", stream=sys.stderr)
     args = _build_parser().parse_args(argv)
 
     import boto3
@@ -78,10 +83,10 @@ def main(argv=None):
         print(render(findings, args.min_confidence, args.commands))
 
     if failed:
-        print(
-            f"\nwarning: {len(failed)} region(s) failed and are missing from this "
-            f"report: {', '.join(sorted(failed))}",
-            file=sys.stderr,
+        LOGGER.warning(
+            "%d region(s) failed and are missing from this report: %s",
+            len(failed),
+            ", ".join(sorted(failed)),
         )
         return 3  # partial results — never let a lost region look like a clean estate
     return 0

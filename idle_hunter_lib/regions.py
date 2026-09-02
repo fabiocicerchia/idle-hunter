@@ -1,5 +1,5 @@
 """Fan out over regions. Two checks feed a later one, so the call order matters."""
-import sys
+import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from functools import partial
 
@@ -14,6 +14,8 @@ from idle_hunter_lib.scan import (
     _scan_snapshots,
     _scan_volumes,
 )
+
+LOGGER = logging.getLogger(__name__)
 
 def scan_region(region, session=None, live_pricing=False):
     import boto3
@@ -65,5 +67,5 @@ def scan_regions(regions, session=None, live_pricing=False, workers=8, on_error=
                 if on_error:
                     on_error(region, exc)
                 else:
-                    print(f"warning: {region}: {exc}", file=sys.stderr)
+                    LOGGER.warning("%s: %s", region, exc)
     return findings, failed
