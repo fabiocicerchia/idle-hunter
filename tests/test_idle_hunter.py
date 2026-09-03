@@ -1,9 +1,16 @@
+import json
 from datetime import datetime, timedelta, timezone
 
 from botocore.exceptions import ClientError
 
 from idle_hunter_lib.models import finding, iac_managed
-from idle_hunter_lib.pricing import price
+from idle_hunter_lib.pricing import (
+    PRICE_DEFAULTS,
+    price,
+    price_is_live,
+    rds_engine_name,
+    rds_shape,
+)
 from idle_hunter_lib.render import render
 from idle_hunter_lib.score import (
     NAT_IDLE_BYTES,
@@ -109,3 +116,96 @@ def test_rds_score_treats_missing_metrics_as_unknown():
     assert score_idle_rds({}, 5) == 55  # below the noise floor
     assert score_idle_rds({}, 5000) == 0  # in use
     assert score_idle_rds({}, None) == 0  # no metric is unknown, never idle
+
+
+class FakePricing:
+    """Minimal Pricing API stand-in: records the filters, returns one price."""
+
+    def __init__(self, usd, seen):
+        self.usd = usd
+        self.seen = seen
+
+    def client(self, *a, **k):
+        return self
+
+    def get_products(self, ServiceCode, Filters, MaxResults):
+        self.seen.append({f["Field"]: f["Value"] for f in Filters})
+        doc = {
+            "terms": {
+                "OnDemand": {
+                    "t": {"priceDimensions": {"d": {"pricePerUnit": {"USD": str(self.usd)}}}}
+                }
+            }
+        }
+        return {"PriceList": [json.dumps(doc)]}
+
+
+def test_rds_engine_name_maps_families_and_refuses_to_guess():
+    assert rds_engine_name("postgres") == "PostgreSQL"
+    assert rds_engine_name("aurora-mysql") == "Aurora MySQL"
+    # Edition-suffixed families match on the prefix.
+    assert rds_engine_name("oracle-ee") == "Oracle"
+    assert rds_engine_name("sqlserver-ex") == "SQL Server"
+    # An engine we cannot name must not be guessed into some other engine's SKU.
+    assert rds_engine_name("neptune") is None
+    assert rds_engine_name(None) is None
+
+
+def test_rds_shape_carries_class_engine_deployment_and_licence():
+    shape = rds_shape(
+        {
+            "DBInstanceClass": "db.r6g.xlarge",
+            "Engine": "postgres",
+            "MultiAZ": True,
+            "LicenseModel": "postgresql-license",
+        }
+    )
+    assert shape == {
+        "instanceType": "db.r6g.xlarge",
+        "databaseEngine": "PostgreSQL",
+        "deploymentOption": "Multi-AZ",
+        "licenseModel": "No license required",
+    }
+    byol = rds_shape(
+        {
+            "DBInstanceClass": "db.m5.large",
+            "Engine": "oracle-ee",
+            "LicenseModel": "bring-your-own-license",
+        }
+    )
+    assert byol["deploymentOption"] == "Single-AZ"
+    assert byol["licenseModel"] == "Bring your own license"
+
+
+def test_rds_live_pricing_queries_the_instance_shape_not_a_flat_rate():
+    seen = []
+    shape = rds_shape({"DBInstanceClass": "db.m5.large", "Engine": "mysql", "MultiAZ": False})
+    hourly = 0.171
+    got = price("rds", "eu-west-2", session=FakePricing(hourly, seen), live=True, **shape)
+
+    assert got == hourly * 730 and got != PRICE_DEFAULTS["rds"]
+    assert price_is_live("rds", "eu-west-2", **shape)
+    # The class, engine, deployment and licence all have to reach the query, or
+    # it prices some other instance's SKU.
+    assert seen[0]["instanceType"] == "db.m5.large"
+    assert seen[0]["databaseEngine"] == "MySQL"
+    assert seen[0]["deploymentOption"] == "Single-AZ"
+    assert seen[0]["licenseModel"] == "No license required"
+    assert seen[0]["regionCode"] == "eu-west-2"
+
+
+def test_rds_unnameable_engine_falls_back_without_querying():
+    seen = []
+    shape = rds_shape({"DBInstanceClass": "db.m5.large", "Engine": "neptune"})
+    got = price("rds", "eu-west-3", session=FakePricing(9.99, seen), live=True, **shape)
+
+    # A half-filled filter set would match the wrong SKU, so it must not be sent.
+    assert seen == []
+    assert got == PRICE_DEFAULTS["rds"]
+    assert not price_is_live("rds", "eu-west-3", **shape)
+
+
+def test_rds_price_is_not_live_without_the_flag():
+    shape = rds_shape({"DBInstanceClass": "db.m5.large", "Engine": "mysql"})
+    assert price("rds", "eu-north-1", **shape) == PRICE_DEFAULTS["rds"]
+    assert not price_is_live("rds", "eu-north-1", **shape)

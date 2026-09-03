@@ -2,6 +2,7 @@
 
 from idle_hunter_lib.metrics import LB_NAMESPACES, cw_sum
 from idle_hunter_lib.models import finding
+from idle_hunter_lib.pricing import price_is_live, rds_shape
 from idle_hunter_lib.score import (
     age_days,
     score_empty_lb,
@@ -101,15 +102,25 @@ def _scan_rds(rds, cw, region, price_of):
         if not score:
             continue
         instance_class = db.get("DBInstanceClass", "?")
+        # The four filters that identify this instance's SKU. With --live-pricing
+        # they resolve the real class; without them the finding says so rather
+        # than presenting the baseline as if it were this instance's bill.
+        shape = rds_shape(db)
+        monthly = price_of("rds", **shape)
+        cost = (
+            f"priced as {instance_class} {shape['deploymentOption']} on-demand"
+            if price_is_live("rds", region, **shape)
+            else f"cost shown is a db.t3.medium baseline, scale it for {instance_class}"
+        )
         findings.append(
             finding(
                 "rds-idle",
                 name,
                 region,
                 score,
-                price_of("rds"),
-                f"{instance_class} {db.get('Engine', '?')} took {int(conns)} connection(s) in 30d "
-                f"(cost shown is a db.t3.medium baseline, scale it for {instance_class})",
+                monthly,
+                f"{instance_class} {db.get('Engine', '?')} took {int(conns)} "
+                f"connection(s) in 30d ({cost})",
                 f"aws rds delete-db-instance --region {region} --db-instance-identifier {name} "
                 f"--final-db-snapshot-identifier {name}-final",
                 db.get("TagList"),
