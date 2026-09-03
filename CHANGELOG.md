@@ -5,6 +5,13 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0](https://github.com/fabiocicerchia/idle-hunter/compare/v1.1.0...v1.2.0) (2026-09-03)
+
+
+### Features
+
+* **pricing:** wire --live-pricing into the RDS check ([#33](https://github.com/fabiocicerchia/idle-hunter/issues/33)) ([684bf3f](https://github.com/fabiocicerchia/idle-hunter/commit/684bf3fa32a9cb73339260896126f1709b3fe730))
+
 ## [1.1.0](https://github.com/fabiocicerchia/idle-hunter/compare/v1.0.0...v1.1.0) (2026-08-30)
 
 
