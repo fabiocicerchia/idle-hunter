@@ -31,16 +31,12 @@ jobs:
 
       - name: Install
         run: |
-          python -m pip install --upgrade pip
-          # `pip install .[dev]` only warns when the extra does not exist, so it
-          # can "succeed" having installed no test runner at all. Fall back, and
-          # guarantee pytest either way — `make test` calls it by bare name.
-          if [ -f pyproject.toml ]; then
-            pip install -e ".[dev]" || pip install -e .
-          elif [ -f requirements.txt ]; then
-            pip install -r requirements.txt
-          fi
-          python -m pip show pytest >/dev/null 2>&1 || pip install pytest
+          # Dependencies come from a hash-pinned lockfile; the package itself
+          # installs with --no-deps so nothing unpinned sneaks in. Regenerate:
+          #   uv pip compile pyproject.toml requirements-dev.in \
+          #     --generate-hashes --universal -p 3.10 -o requirements-dev.txt
+          pip install --require-hashes -r requirements-dev.txt
+          pip install -e . --no-deps
 
       - name: Test
         run: make test
