@@ -1,16 +1,19 @@
 import json
 from datetime import datetime, timedelta, timezone
 
-from idle_hunter import (
-    NAT_IDLE_BYTES,
+from botocore.exceptions import ClientError
+
+from idle_hunter_lib.models import finding, iac_managed
+from idle_hunter_lib.pricing import (
     PRICE_DEFAULTS,
-    finding,
-    iac_managed,
     price,
     price_is_live,
     rds_engine_name,
     rds_shape,
-    render,
+)
+from idle_hunter_lib.render import render
+from idle_hunter_lib.score import (
+    NAT_IDLE_BYTES,
     score_empty_lb,
     score_idle_nat,
     score_stale_snapshot,
@@ -74,17 +77,17 @@ def test_iac_managed_tags_lower_the_score():
         "n",
         tags=[{"Key": "terraform:module", "Value": "vpc"}],
     )
-    assert f["confidence"] == 60 and "IaC-managed" in f["note"]
+    assert f.confidence == 60 and "IaC-managed" in f.note
 
 
 def test_price_falls_back_to_estimates_without_live_lookup():
     assert price("elb", "eu-west-1") == 18.0
 
-    class Boom:
+    class Denied:
         def client(self, *a, **k):
-            raise RuntimeError("no pricing:GetProducts")
+            raise ClientError({"Error": {"Code": "AccessDenied"}}, "GetProducts")
 
-    assert price("elb", "eu-west-1", session=Boom(), live=True) == 18.0
+    assert price("elb", "eu-west-1", session=Denied(), live=True) == 18.0
 
 
 def test_render_sorts_and_filters():
@@ -98,7 +101,7 @@ def test_render_sorts_and_filters():
 
 
 def test_eni_score_zero_when_a_service_owns_it():
-    from idle_hunter import score_unattached_eni
+    from idle_hunter_lib.score import score_unattached_eni
 
     assert score_unattached_eni({"Status": "available"}) == 85
     # RequesterManaged is not low confidence, it is the wrong resource entirely
@@ -107,7 +110,7 @@ def test_eni_score_zero_when_a_service_owns_it():
 
 
 def test_rds_score_treats_missing_metrics_as_unknown():
-    from idle_hunter import score_idle_rds
+    from idle_hunter_lib.score import score_idle_rds
 
     assert score_idle_rds({}, 0) == 80  # nothing connected in 30 days
     assert score_idle_rds({}, 5) == 55  # below the noise floor

@@ -26,6 +26,12 @@ idle-hunter = "idle_hunter:main"
 
 [tool.setuptools]
 py-modules = ["idle_hunter"]
+packages = ["idle_hunter_lib"]
 
 [tool.ruff]
 line-length = 100
+
+[tool.pytest.ini_options]
+# Without this the suite imports whatever `idle_hunter` is on sys.path — in a
+# bare checkout that is nothing, and `make test` fails at collection.
+pythonpath = ["."]
