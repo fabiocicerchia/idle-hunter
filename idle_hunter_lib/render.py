@@ -2,9 +2,12 @@
 
 import json
 from dataclasses import asdict
+from typing import TextIO
+
+from idle_hunter_lib.models import Finding
 
 
-def render(findings, min_confidence=0, show_commands=False):
+def render(findings: list[Finding], min_confidence: int = 0, show_commands: bool = False) -> str:
     rows = [f for f in findings if f.confidence >= max(min_confidence, 1)]
     rows.sort(key=lambda f: (-f.confidence, -f.monthly_usd))
     total = sum(f.monthly_usd for f in rows)
@@ -17,7 +20,7 @@ def render(findings, min_confidence=0, show_commands=False):
     return "\n".join(lines)
 
 
-def render_json(findings, min_confidence, stream):
+def render_json(findings: list[Finding], min_confidence: int, stream: TextIO) -> None:
     """The same findings as JSON, for dashboards and examples/basic/review.sh."""
     # --min-confidence applies here too: a script generated from this output
     # must not contain deletes the caller asked to be filtered out.

@@ -1,8 +1,11 @@
 """Monthly cost per unit: built-in estimates, or the Pricing API with --live-pricing."""
 
 import json
+from typing import Any
 
 from botocore.exceptions import BotoCoreError, ClientError
+
+from idle_hunter_lib.types import Resource, Session
 
 # The Pricing API is only served from us-east-1, whatever region is being priced.
 # https://docs.aws.amazon.com/awsaccountbilling/latest/aboutv2/price-changes.html
@@ -71,7 +74,7 @@ RDS_LICENCE_NAMES = {
 }
 
 
-def rds_engine_name(engine):
+def rds_engine_name(engine: str | None) -> str | None:
     """Pricing API `databaseEngine` for an RDS engine token, or None if unknown.
 
     None means "do not guess". A wrong engine name still matches a real SKU, so
@@ -87,7 +90,7 @@ def rds_engine_name(engine):
     return None
 
 
-def rds_shape(db):
+def rds_shape(db: Resource) -> dict[str, str | None]:
     """The four Pricing API filters that identify one instance's SKU."""
     return {
         "instanceType": db.get("DBInstanceClass"),
@@ -100,7 +103,7 @@ def rds_shape(db):
 _PRICE_CACHE = {}
 
 
-def _lookup_price(session, service_code, filters):
+def _lookup_price(session: Session, service_code: str, filters: list[dict[str, str]]) -> float | None:
     """First positive on-demand USD price matching `filters`, or None."""
     client = session.client("pricing", region_name=PRICING_API_REGION)
     resp = client.get_products(
@@ -117,11 +120,11 @@ def _lookup_price(session, service_code, filters):
     return None
 
 
-def _cache_key(key, region, params):
+def _cache_key(key: str, region: str, params: dict[str, Any]) -> tuple[str, str, tuple[tuple[str, Any], ...]]:
     return (key, region, tuple(sorted(params.items())))
 
 
-def price(key, region, session=None, live=False, **params):
+def price(key: str, region: str, session: Session | None = None, live: bool = False, **params: Any) -> float:
     """Monthly USD per unit — Pricing API when `live`, else the built-in estimate.
 
     `params` fill the None holes in this key's PRICE_QUERIES filters. A hole left
@@ -141,14 +144,14 @@ def price(key, region, session=None, live=False, **params):
             # Named rather than blanket: a bug in _lookup_price should surface,
             # not quietly read as "this shape has no price".
             try:
-                found = _lookup_price(session, service, resolved + (("regionCode", region),))
+                found = _lookup_price(session, service, (*resolved, ("regionCode", region)))
             except (BotoCoreError, ClientError, ValueError, TypeError):
                 found = None
         _PRICE_CACHE[ck] = (found * months, True) if found else (PRICE_DEFAULTS[key], False)
     return _PRICE_CACHE[ck][0]
 
 
-def price_is_live(key, region, **params):
+def price_is_live(key: str, region: str, **params: Any) -> bool:
     """Whether the price already resolved for these arguments came from the API.
 
     Read after price(), so a finding can say which of the two numbers the reader

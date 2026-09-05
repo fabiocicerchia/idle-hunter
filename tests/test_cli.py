@@ -5,12 +5,17 @@ the seam and the assertions are on what the code returns and logs.
 """
 
 import logging
+from typing import NoReturn
+
+import pytest
 
 from idle_hunter_lib import cli, regions
 
 
-def test_a_failed_region_is_logged_when_the_caller_passes_no_handler(monkeypatch, caplog):
-    def boom(region, session=None, live_pricing=False):
+def test_a_failed_region_is_logged_when_the_caller_passes_no_handler(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    def boom(region, session=None, live_pricing=False) -> NoReturn:
         raise RuntimeError("AccessDenied")
 
     monkeypatch.setattr(regions, "scan_region", boom)
@@ -22,7 +27,9 @@ def test_a_failed_region_is_logged_when_the_caller_passes_no_handler(monkeypatch
     assert "eu-west-1: AccessDenied" in caplog.text
 
 
-def test_main_warns_about_the_regions_it_lost_and_exits_nonzero(monkeypatch, caplog, capsys):
+def test_main_warns_about_the_regions_it_lost_and_exits_nonzero(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture, capsys: pytest.CaptureFixture[str]
+) -> None:
     monkeypatch.setattr(cli, "scan_regions", lambda *a, **kw: ([], ["eu-west-3"]))
     with caplog.at_level(logging.WARNING, logger="idle_hunter_lib.cli"):
         code = cli.main(["scan", "--region", "eu-west-3"])
@@ -32,6 +39,6 @@ def test_main_warns_about_the_regions_it_lost_and_exits_nonzero(monkeypatch, cap
     assert "0 finding(s)" in capsys.readouterr().out  # the report still lands on stdout
 
 
-def test_main_exits_zero_when_no_region_failed(monkeypatch):
+def test_main_exits_zero_when_no_region_failed(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(cli, "scan_regions", lambda *a, **kw: ([], []))
     assert cli.main(["scan", "--region", "eu-west-3"]) == 0

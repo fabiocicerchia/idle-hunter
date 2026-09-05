@@ -1,7 +1,10 @@
 """The only code that calls boto3: one _scan_* per resource kind."""
 
+from collections.abc import Iterator
+from typing import Any
+
 from idle_hunter_lib.metrics import LB_NAMESPACES, cw_sum
-from idle_hunter_lib.models import finding
+from idle_hunter_lib.models import Finding, finding
 from idle_hunter_lib.pricing import price_is_live, rds_shape
 from idle_hunter_lib.score import (
     age_days,
@@ -14,14 +17,15 @@ from idle_hunter_lib.score import (
     score_unattached_volume,
     score_unused_ami,
 )
+from idle_hunter_lib.types import Client, PriceOf, Resource
 
 
-def _pages(client, op, key, **kwargs):
+def _pages(client: Client, op: str, key: str, **kwargs: Any) -> Iterator[Resource]:
     for page in client.get_paginator(op).paginate(**kwargs):
         yield from page[key]
 
 
-def _scan_volumes(ec2, region, price_of):
+def _scan_volumes(ec2: Client, region: str, price_of: PriceOf) -> tuple[list[Finding], set[str]]:
     """Unattached volumes, plus the id set every live volume is in (for snapshots)."""
     findings, live_ids = [], set()
     for vol in _pages(ec2, "describe_volumes", "Volumes"):
@@ -37,14 +41,14 @@ def _scan_volumes(ec2, region, price_of):
                 score_unattached_volume(vol),
                 gb * price_of("ebs_gb"),
                 f"{gb} GiB, created {age_days(vol['CreateTime'])}d ago, status=available",
-                f"aws ec2 delete-volume --region {region} --volume-id {vol['VolumeId']}",
-                vol.get("Tags"),
+                command=f"aws ec2 delete-volume --region {region} --volume-id {vol['VolumeId']}",
+                tags=vol.get("Tags"),
             )
         )
     return findings, live_ids
 
 
-def _scan_eips(ec2, region, price_of):
+def _scan_eips(ec2: Client, region: str, price_of: PriceOf) -> list[Finding]:
     return [
         finding(
             "eip-unassociated",
@@ -53,15 +57,15 @@ def _scan_eips(ec2, region, price_of):
             score_unassociated_eip(addr),
             price_of("eip"),
             f"elastic IP {addr.get('PublicIp')} not associated",
-            f"aws ec2 release-address --region {region} --allocation-id {addr.get('AllocationId')}",
-            addr.get("Tags"),
+            command=f"aws ec2 release-address --region {region} --allocation-id {addr.get('AllocationId')}",
+            tags=addr.get("Tags"),
         )
         for addr in ec2.describe_addresses()["Addresses"]
         if "AssociationId" not in addr
     ]
 
 
-def _scan_enis(ec2, region, price_of):
+def _scan_enis(ec2: Client, region: str, price_of: PriceOf) -> list[Finding]:
     findings = []
     for eni in _pages(
         ec2,
@@ -83,15 +87,14 @@ def _scan_enis(ec2, region, price_of):
                 price_of("eni"),
                 f"detached network interface in {eni.get('SubnetId', '?')} ({desc}) — "
                 f"free, but it pins its subnet and security groups",
-                f"aws ec2 delete-network-interface --region {region} "
-                f"--network-interface-id {eni_id}",
-                eni.get("TagSet"),
+                command=f"aws ec2 delete-network-interface --region {region} --network-interface-id {eni_id}",
+                tags=eni.get("TagSet"),
             )
         )
     return findings
 
 
-def _scan_rds(rds, cw, region, price_of):
+def _scan_rds(rds: Client, cw: Client, region: str, price_of: PriceOf) -> list[Finding]:
     findings = []
     for db in _pages(rds, "describe_db_instances", "DBInstances"):
         if db.get("DBInstanceStatus") != "available":
@@ -119,17 +122,16 @@ def _scan_rds(rds, cw, region, price_of):
                 region,
                 score,
                 monthly,
-                f"{instance_class} {db.get('Engine', '?')} took {int(conns)} "
-                f"connection(s) in 30d ({cost})",
-                f"aws rds delete-db-instance --region {region} --db-instance-identifier {name} "
+                f"{instance_class} {db.get('Engine', '?')} took {int(conns)} connection(s) in 30d ({cost})",
+                command=f"aws rds delete-db-instance --region {region} --db-instance-identifier {name} "
                 f"--final-db-snapshot-identifier {name}-final",
-                db.get("TagList"),
+                tags=db.get("TagList"),
             )
         )
     return findings
 
 
-def _registered_targets(elb, lb_arn):
+def _registered_targets(elb: Client, lb_arn: str) -> int:
     """Targets registered across every target group of one load balancer."""
     total = 0
     for tg in elb.describe_target_groups(LoadBalancerArn=lb_arn)["TargetGroups"]:
@@ -138,7 +140,7 @@ def _registered_targets(elb, lb_arn):
     return total
 
 
-def _scan_load_balancers(elb, cw, region, price_of):
+def _scan_load_balancers(elb: Client, cw: Client, region: str, price_of: PriceOf) -> list[Finding]:
     findings = []
     for lb in _pages(elb, "describe_load_balancers", "LoadBalancers"):
         targets = _registered_targets(elb, lb["LoadBalancerArn"])
@@ -165,15 +167,14 @@ def _scan_load_balancers(elb, cw, region, price_of):
                 score,
                 price_of("elb"),
                 f"{lb['Type']} LB with 0 registered targets{idle_note}",
-                f"aws elbv2 delete-load-balancer --region {region} "
-                f"--load-balancer-arn {lb['LoadBalancerArn']}",
-                tags,
+                command=f"aws elbv2 delete-load-balancer --region {region} --load-balancer-arn {lb['LoadBalancerArn']}",
+                tags=tags,
             )
         )
     return findings
 
 
-def _scan_nat_gateways(ec2, cw, region, price_of):
+def _scan_nat_gateways(ec2: Client, cw: Client, region: str, price_of: PriceOf) -> list[Finding]:
     findings = []
     for nat in _pages(
         ec2,
@@ -195,14 +196,14 @@ def _scan_nat_gateways(ec2, cw, region, price_of):
                 score,
                 price_of("nat"),
                 f"NAT gateway sent {mib:.1f} MiB in 30d, up {age_days(nat['CreateTime'])}d",
-                f"aws ec2 delete-nat-gateway --region {region} --nat-gateway-id {nat_id}",
-                nat.get("Tags"),
+                command=f"aws ec2 delete-nat-gateway --region {region} --nat-gateway-id {nat_id}",
+                tags=nat.get("Tags"),
             )
         )
     return findings
 
 
-def _backing_snapshots(image):
+def _backing_snapshots(image: Resource) -> tuple[set[str], int]:
     """The snapshot ids an AMI is built from, and their total size in GiB."""
     # Bound separately, not as `snapshot_ids, gb = set(), 0`: the pinned
     # greenlint (v0.1.4) only reads single-name assignments when it works out
@@ -219,7 +220,7 @@ def _backing_snapshots(image):
     return snapshot_ids, gb
 
 
-def _scan_images(ec2, region, price_of):
+def _scan_images(ec2: Client, region: str, price_of: PriceOf) -> tuple[list[Finding], set[str]]:
     """Self-owned AMIs no instance uses, plus the snapshot ids AMIs still back."""
     in_use = {
         inst["ImageId"]
@@ -245,14 +246,16 @@ def _scan_images(ec2, region, price_of):
                 gb * price_of("snapshot_gb"),
                 f"{image.get('Name', 'unnamed')}: no instance uses it, "
                 f"registered {age_days(image['CreationDate'])}d ago, {gb} GiB of snapshots",
-                f"aws ec2 deregister-image --region {region} --image-id {image['ImageId']}",
-                image.get("Tags"),
+                command=f"aws ec2 deregister-image --region {region} --image-id {image['ImageId']}",
+                tags=image.get("Tags"),
             )
         )
     return findings, ami_snapshots
 
 
-def _scan_snapshots(ec2, region, price_of, live_volume_ids, ami_snapshots):
+def _scan_snapshots(
+    ec2: Client, region: str, price_of: PriceOf, live_volume_ids: set[str], ami_snapshots: set[str]
+) -> list[Finding]:
     findings = []
     for snap in _pages(ec2, "describe_snapshots", "Snapshots", OwnerIds=["self"]):
         if snap["SnapshotId"] in ami_snapshots:
@@ -270,8 +273,8 @@ def _scan_snapshots(ec2, region, price_of, live_volume_ids, ami_snapshots):
                 gb * price_of("snapshot_gb"),
                 f"{gb} GiB, source {snap.get('VolumeId', '?')} no longer exists, "
                 f"taken {age_days(snap['StartTime'])}d ago",
-                f"aws ec2 delete-snapshot --region {region} --snapshot-id {snap['SnapshotId']}",
-                snap.get("Tags"),
+                command=f"aws ec2 delete-snapshot --region {region} --snapshot-id {snap['SnapshotId']}",
+                tags=snap.get("Tags"),
             )
         )
     return findings
