@@ -5,6 +5,7 @@ is only orphaned if its volume is absent from the volume scan, and only if no
 AMI still backs it.
 """
 
+from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -12,13 +13,14 @@ import pytest
 from idle_hunter_lib import regions
 from idle_hunter_lib.models import Finding
 from idle_hunter_lib.regions import scan_region
+from idle_hunter_lib.types import Json, Session
 
 
-def ago(n):
+def ago(n: int) -> datetime:
     return datetime.now(timezone.utc) - timedelta(days=n)
 
 
-RESPONSES = {
+RESPONSES: dict[str, Json] = {
     "describe_volumes": {
         "Volumes": [
             {
@@ -146,21 +148,25 @@ RESPONSES = {
 
 
 class FakeClient:
-    def __getattr__(self, op):
-        def call(**_kw):
+    """Answers any describe_* call from the RESPONSES table above."""
+
+    def __getattr__(self, op: str) -> Callable[..., Json]:
+        def call(**_kwargs: object) -> Json:
             return RESPONSES[op]
 
         return call
 
-    def get_paginator(self, op):
+    def get_paginator(self, op: str) -> object:
         class P:
-            paginate = staticmethod(lambda **_kw: [RESPONSES[op]])
+            @staticmethod
+            def paginate(**_kwargs: object) -> list[Json]:
+                return [RESPONSES[op]]
 
         return P()
 
 
 class FakeSession:
-    def client(self, _name, **_kw):
+    def client(self, _name: str, **_kwargs: object) -> FakeClient:
         return FakeClient()
 
 
@@ -207,9 +213,9 @@ if __name__ == "__main__":
 
 def test_scan_regions_runs_in_parallel_and_survives_one_bad_region(monkeypatch: pytest.MonkeyPatch) -> None:
     """A region that raises is reported and skipped, not fatal to the sweep."""
-    seen = []
+    seen: list[str] = []
 
-    def fake_scan_region(region, session=None, live_pricing=False):
+    def fake_scan_region(region: str, session: Session | None = None, live_pricing: bool = False) -> list[Finding]:
         seen.append(region)
         if region == "eu-broken-1":
             raise RuntimeError("AccessDenied")
@@ -217,7 +223,7 @@ def test_scan_regions_runs_in_parallel_and_survives_one_bad_region(monkeypatch: 
 
     monkeypatch.setattr(regions, "scan_region", fake_scan_region)
 
-    errors = []
+    errors: list[tuple[str, str]] = []
     findings, failed = regions.scan_regions(
         ["eu-west-1", "eu-broken-1", "us-east-1"],
         live_pricing=False,
@@ -233,9 +239,9 @@ def test_scan_regions_runs_in_parallel_and_survives_one_bad_region(monkeypatch: 
 
 def test_single_region_does_not_start_a_pool(monkeypatch: pytest.MonkeyPatch) -> None:
     """One region keeps the caller's session — no reason to build a second one."""
-    used = {}
+    used: dict[str, object] = {}
 
-    def fake_scan_region(region, session=None, live_pricing=False):
+    def fake_scan_region(region: str, session: Session | None = None, live_pricing: bool = False) -> list[Finding]:
         used["session"] = session
         return []
 

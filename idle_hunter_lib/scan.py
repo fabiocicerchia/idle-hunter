@@ -25,9 +25,10 @@ def _pages(client: Client, op: str, key: str, **kwargs: Any) -> Iterator[Resourc
         yield from page[key]
 
 
-def _scan_volumes(ec2: Client, region: str, price_of: PriceOf) -> tuple[list[Finding], set[str]]:
+def scan_volumes(ec2: Client, region: str, price_of: PriceOf) -> tuple[list[Finding], set[str]]:
     """Unattached volumes, plus the id set every live volume is in (for snapshots)."""
-    findings, live_ids = [], set()
+    findings: list[Finding] = []
+    live_ids: set[str] = set()
     for vol in _pages(ec2, "describe_volumes", "Volumes"):
         live_ids.add(vol["VolumeId"])
         if vol["Status"] != "available":
@@ -48,7 +49,7 @@ def _scan_volumes(ec2: Client, region: str, price_of: PriceOf) -> tuple[list[Fin
     return findings, live_ids
 
 
-def _scan_eips(ec2: Client, region: str, price_of: PriceOf) -> list[Finding]:
+def scan_eips(ec2: Client, region: str, price_of: PriceOf) -> list[Finding]:
     return [
         finding(
             "eip-unassociated",
@@ -65,8 +66,8 @@ def _scan_eips(ec2: Client, region: str, price_of: PriceOf) -> list[Finding]:
     ]
 
 
-def _scan_enis(ec2: Client, region: str, price_of: PriceOf) -> list[Finding]:
-    findings = []
+def scan_enis(ec2: Client, region: str, price_of: PriceOf) -> list[Finding]:
+    findings: list[Finding] = []
     for eni in _pages(
         ec2,
         "describe_network_interfaces",
@@ -94,25 +95,27 @@ def _scan_enis(ec2: Client, region: str, price_of: PriceOf) -> list[Finding]:
     return findings
 
 
-def _scan_rds(rds: Client, cw: Client, region: str, price_of: PriceOf) -> list[Finding]:
-    findings = []
+def scan_rds(rds: Client, cw: Client, region: str, price_of: PriceOf) -> list[Finding]:
+    findings: list[Finding] = []
     for db in _pages(rds, "describe_db_instances", "DBInstances"):
         if db.get("DBInstanceStatus") != "available":
             continue
         name = db["DBInstanceIdentifier"]
         conns = cw_sum(cw, "AWS/RDS", "DatabaseConnections", [("DBInstanceIdentifier", name)])
         score = score_idle_rds(db, conns)
-        if not score:
+        # score_idle_rds returns 0 for None -- "CloudWatch said nothing" is not
+        # evidence of idleness -- so a scored instance always has a number.
+        if not score or conns is None:
             continue
         instance_class = db.get("DBInstanceClass", "?")
         # The four filters that identify this instance's SKU. With --live-pricing
         # they resolve the real class; without them the finding says so rather
         # than presenting the baseline as if it were this instance's bill.
         shape = rds_shape(db)
-        monthly = price_of("rds", **shape)
+        monthly = price_of("rds", filters=shape)
         cost = (
             f"priced as {instance_class} {shape['deploymentOption']} on-demand"
-            if price_is_live("rds", region, **shape)
+            if price_is_live("rds", region, filters=shape)
             else f"cost shown is a db.t3.medium baseline, scale it for {instance_class}"
         )
         findings.append(
@@ -140,8 +143,8 @@ def _registered_targets(elb: Client, lb_arn: str) -> int:
     return total
 
 
-def _scan_load_balancers(elb: Client, cw: Client, region: str, price_of: PriceOf) -> list[Finding]:
-    findings = []
+def scan_load_balancers(elb: Client, cw: Client, region: str, price_of: PriceOf) -> list[Finding]:
+    findings: list[Finding] = []
     for lb in _pages(elb, "describe_load_balancers", "LoadBalancers"):
         targets = _registered_targets(elb, lb["LoadBalancerArn"])
         traffic = None
@@ -174,8 +177,8 @@ def _scan_load_balancers(elb: Client, cw: Client, region: str, price_of: PriceOf
     return findings
 
 
-def _scan_nat_gateways(ec2: Client, cw: Client, region: str, price_of: PriceOf) -> list[Finding]:
-    findings = []
+def scan_nat_gateways(ec2: Client, cw: Client, region: str, price_of: PriceOf) -> list[Finding]:
+    findings: list[Finding] = []
     for nat in _pages(
         ec2,
         "describe_nat_gateways",
@@ -210,17 +213,18 @@ def _backing_snapshots(image: Resource) -> tuple[set[str], int]:
     # what a name holds, so the tuple form left `gb` untyped and `gb += ...`
     # below read as a sequence rebuild (GL007) rather than the integer sum it
     # is. Fixed upstream in greenlint v0.8.3, which destructures tuple targets.
-    snapshot_ids = set()
+    snapshot_ids: set[str] = set()
     gb = 0
-    for bdm in image.get("BlockDeviceMappings", []):
-        ebs = bdm.get("Ebs", {})
+    mappings: list[Resource] = image.get("BlockDeviceMappings", [])
+    for bdm in mappings:
+        ebs: Resource = bdm.get("Ebs", {})
         if "SnapshotId" in ebs:
             snapshot_ids.add(ebs["SnapshotId"])
             gb += ebs.get("VolumeSize", 0)
     return snapshot_ids, gb
 
 
-def _scan_images(ec2: Client, region: str, price_of: PriceOf) -> tuple[list[Finding], set[str]]:
+def scan_images(ec2: Client, region: str, price_of: PriceOf) -> tuple[list[Finding], set[str]]:
     """Self-owned AMIs no instance uses, plus the snapshot ids AMIs still back."""
     in_use = {
         inst["ImageId"]
@@ -230,7 +234,8 @@ def _scan_images(ec2: Client, region: str, price_of: PriceOf) -> tuple[list[Find
     }
     # ponytail: instances only. AMIs referenced solely by launch templates or ASGs
     # still read as unused — add those lookups if that produces false positives.
-    findings, ami_snapshots = [], set()
+    findings: list[Finding] = []
+    ami_snapshots: set[str] = set()
     for image in _pages(ec2, "describe_images", "Images", Owners=["self"]):
         snapshot_ids, gb = _backing_snapshots(image)
         ami_snapshots |= snapshot_ids
@@ -253,10 +258,10 @@ def _scan_images(ec2: Client, region: str, price_of: PriceOf) -> tuple[list[Find
     return findings, ami_snapshots
 
 
-def _scan_snapshots(
+def scan_snapshots(
     ec2: Client, region: str, price_of: PriceOf, live_volume_ids: set[str], ami_snapshots: set[str]
 ) -> list[Finding]:
-    findings = []
+    findings: list[Finding] = []
     for snap in _pages(ec2, "describe_snapshots", "Snapshots", OwnerIds=["self"]):
         if snap["SnapshotId"] in ami_snapshots:
             continue  # backing a registered AMI — that AMI is the finding, not this

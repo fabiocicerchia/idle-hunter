@@ -23,6 +23,7 @@ from idle_hunter_lib.score import (
     score_unattached_volume,
     score_unused_ami,
 )
+from idle_hunter_lib.types import Json, Resource
 
 
 def days_ago(n: int) -> datetime:
@@ -30,8 +31,8 @@ def days_ago(n: int) -> datetime:
 
 
 def test_volume_score_grows_with_age_and_caps() -> None:
-    young = {"CreateTime": days_ago(1), "Tags": [{"Key": "Name", "Value": "x"}]}
-    old_unnamed = {"CreateTime": days_ago(365), "Tags": []}
+    young: Resource = {"CreateTime": days_ago(1), "Tags": [{"Key": "Name", "Value": "x"}]}
+    old_unnamed: Resource = {"CreateTime": days_ago(365), "Tags": []}
     assert score_unattached_volume(young) < score_unattached_volume(old_unnamed) <= 95
 
 
@@ -49,7 +50,7 @@ def test_lb_score_boosted_by_zero_traffic() -> None:
 
 
 def test_nat_score_needs_a_metric() -> None:
-    nat = {"CreateTime": days_ago(200)}
+    nat: Resource = {"CreateTime": days_ago(200)}
     assert score_idle_nat(nat, None) == 0  # no datapoints ≠ dead
     assert score_idle_nat(nat, 0) == 85
     assert score_idle_nat(nat, NAT_IDLE_BYTES - 1) == 65
@@ -88,7 +89,7 @@ def test_price_falls_back_to_estimates_without_live_lookup() -> None:
     assert price("elb", "eu-west-1") == 18.0
 
     class Denied:
-        def client(self, *a, **k) -> NoReturn:
+        def client(self, *_args: object, **_kwargs: object) -> NoReturn:
             raise ClientError({"Error": {"Code": "AccessDenied"}}, "GetProducts")
 
     assert price("elb", "eu-west-1", session=Denied(), live=True) == 18.0
@@ -122,14 +123,16 @@ def test_rds_score_treats_missing_metrics_as_unknown() -> None:
 class FakePricing:
     """Minimal Pricing API stand-in: records the filters, returns one price."""
 
-    def __init__(self, usd, seen) -> None:
+    def __init__(self, usd: float, seen: list[dict[str, str]]) -> None:
         self.usd = usd
         self.seen = seen
 
-    def client(self, *a: object, **k: object) -> "FakePricing":
+    def client(self, *_args: object, **_kwargs: object) -> "FakePricing":
         return self
 
-    def get_products(self, ServiceCode: str, Filters: object, MaxResults: int) -> dict[str, object]:
+    # The argument names are the Pricing API's, which is why they are not
+    # snake_case.
+    def get_products(self, ServiceCode: str, Filters: list[dict[str, str]], MaxResults: int) -> Json:
         self.seen.append({f["Field"]: f["Value"] for f in Filters})
         doc = {"terms": {"OnDemand": {"t": {"priceDimensions": {"d": {"pricePerUnit": {"USD": str(self.usd)}}}}}}}
         return {"PriceList": [json.dumps(doc)]}
@@ -173,14 +176,14 @@ def test_rds_shape_carries_class_engine_deployment_and_licence() -> None:
 
 
 def test_rds_live_pricing_queries_the_instance_shape_not_a_flat_rate() -> None:
-    seen = []
+    seen: list[dict[str, str]] = []
     shape = rds_shape({"DBInstanceClass": "db.m5.large", "Engine": "mysql", "MultiAZ": False})
     hourly = 0.171
-    got = price("rds", "eu-west-2", session=FakePricing(hourly, seen), live=True, **shape)
+    got = price("rds", "eu-west-2", session=FakePricing(hourly, seen), live=True, filters=shape)
 
     assert got == hourly * 730
     assert got != PRICE_DEFAULTS["rds"]
-    assert price_is_live("rds", "eu-west-2", **shape)
+    assert price_is_live("rds", "eu-west-2", filters=shape)
     # The class, engine, deployment and licence all have to reach the query, or
     # it prices some other instance's SKU.
     assert seen[0]["instanceType"] == "db.m5.large"
@@ -191,17 +194,17 @@ def test_rds_live_pricing_queries_the_instance_shape_not_a_flat_rate() -> None:
 
 
 def test_rds_unnameable_engine_falls_back_without_querying() -> None:
-    seen = []
+    seen: list[dict[str, str]] = []
     shape = rds_shape({"DBInstanceClass": "db.m5.large", "Engine": "neptune"})
-    got = price("rds", "eu-west-3", session=FakePricing(9.99, seen), live=True, **shape)
+    got = price("rds", "eu-west-3", session=FakePricing(9.99, seen), live=True, filters=shape)
 
     # A half-filled filter set would match the wrong SKU, so it must not be sent.
     assert seen == []
     assert got == PRICE_DEFAULTS["rds"]
-    assert not price_is_live("rds", "eu-west-3", **shape)
+    assert not price_is_live("rds", "eu-west-3", filters=shape)
 
 
 def test_rds_price_is_not_live_without_the_flag() -> None:
     shape = rds_shape({"DBInstanceClass": "db.m5.large", "Engine": "mysql"})
-    assert price("rds", "eu-north-1", **shape) == PRICE_DEFAULTS["rds"]
-    assert not price_is_live("rds", "eu-north-1", **shape)
+    assert price("rds", "eu-north-1", filters=shape) == PRICE_DEFAULTS["rds"]
+    assert not price_is_live("rds", "eu-north-1", filters=shape)

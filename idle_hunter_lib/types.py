@@ -13,6 +13,8 @@ from typing import Any
 Client = Any
 # A boto3 session, likewise.
 Session = Any
+# One AWS response document, as boto3 hands it over.
+Json = dict[str, Any]
 # One AWS resource as its describe/list call returns it.
 Resource = dict[str, Any]
 # A resource's tag list: [{"Key": ..., "Value": ...}].
