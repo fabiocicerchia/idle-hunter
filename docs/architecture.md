@@ -5,7 +5,7 @@ console-script name, and a call into `idle_hunter_lib/`. The hard line runs
 through the package: the half that talks to AWS, and the half that decides what
 a finding is worth.
 
-```
+```text
 idle_hunter.py            the entrypoint; keeps the console-script name
 idle_hunter_lib/
     cli.py                argparse, the exit-code table, the one logging setup
@@ -20,7 +20,7 @@ idle_hunter_lib/
 
 One pass reads top to bottom through those modules:
 
-```
+```text
 scan_region(region)               ← builds the clients, fans out to the _scan_* half
     _scan_volumes                   describe_volumes         (also: the live-volume id set)
     _scan_images                    describe_images/instances (also: the AMI-backing snapshots)
@@ -170,12 +170,12 @@ A region that raises is collected into `failed`, reported, and the run exits 3.
    others. It takes the AWS response shape (plus any CloudWatch signal, where
    `None` must mean *unknown*) and returns 0–100, with a cap below 100 and a
    docstring stating the rule in one line.
-2. A `_scan_*` function in `idle_hunter_lib/scan.py` that queries and appends
+1. A `_scan_*` function in `idle_hunter_lib/scan.py` that queries and appends
    `finding(...)` — including the
    `command`, which must be the exact CLI call a reviewer would run, and the
    resource's tags, which is how it inherits the IaC penalty for free. Call it
    from `scan_region` in `regions.py`.
-3. A test in `tests/` for the scoring function. The AWS half is not unit-tested
+1. A test in `tests/` for the scoring function. The AWS half is not unit-tested
    and does not need to be; the scoring is the part with an opinion in it.
 
 The bar for a new check is that a reader can act on it. A finding that is

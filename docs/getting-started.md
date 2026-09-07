@@ -97,14 +97,14 @@ aws ec2 create-snapshot --volume-id vol-0abc --description "pre-delete, idle-hun
 
 The scores are deterministic and small enough to check by hand:
 
-| Finding | How the score is built |
-|---|---|
-| `ebs-unattached` | 50 base, +5 per week unattached (cap +35), +10 if it has no `Name` tag, capped at 95 |
-| `eip-unassociated` | flat 90 — it costs money and has no state to lose |
-| `elb-no-targets` | 85 if older than 30 days, 60 if newer, +10 if CloudWatch saw no bytes in 30 days; 0 (not reported) if it has targets |
-| `nat-idle` | 85 at exactly zero bytes out in 30 days, 65 under 10 MiB, 0 above that |
-| `snapshot-orphaned` | 45 base, +5 per 30 days, capped 80; 0 if the source volume still exists |
-| `ami-unused` | 40 base, +5 per 30 days, capped 75; 0 if any non-terminated instance runs it |
+| Finding             | How the score is built                                                                                               |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `ebs-unattached`    | 50 base, +5 per week unattached (cap +35), +10 if it has no `Name` tag, capped at 95                                 |
+| `eip-unassociated`  | flat 90 — it costs money and has no state to lose                                                                    |
+| `elb-no-targets`    | 85 if older than 30 days, 60 if newer, +10 if CloudWatch saw no bytes in 30 days; 0 (not reported) if it has targets |
+| `nat-idle`          | 85 at exactly zero bytes out in 30 days, 65 under 10 MiB, 0 above that                                               |
+| `snapshot-orphaned` | 45 base, +5 per 30 days, capped 80; 0 if the source volume still exists                                              |
+| `ami-unused`        | 40 base, +5 per 30 days, capped 75; 0 if any non-terminated instance runs it                                         |
 
 Then, for every kind: **−30 if the resource is tagged as IaC-managed**
 (`aws:cloudformation:*`, `terraform*`, `managed-by: cdk`, Beanstalk, …).
