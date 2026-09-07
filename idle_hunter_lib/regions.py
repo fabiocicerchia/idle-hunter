@@ -1,9 +1,11 @@
 """Fan out over regions. Two checks feed a later one, so the call order matters."""
 
 import logging
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from functools import partial
 
+from idle_hunter_lib.models import Finding
 from idle_hunter_lib.pricing import price
 from idle_hunter_lib.scan import (
     _scan_eips,
@@ -15,12 +17,14 @@ from idle_hunter_lib.scan import (
     _scan_snapshots,
     _scan_volumes,
 )
+from idle_hunter_lib.types import Session
 
 LOGGER = logging.getLogger(__name__)
 
 
-def scan_region(region, session=None, live_pricing=False):
-    import boto3
+def scan_region(region: str, session: Session | None = None, live_pricing: bool = False) -> list[Finding]:
+    # As in cli: imported when a scan starts, not at module load.
+    import boto3  # noqa: PLC0415
 
     session = session or boto3.Session()
     ec2 = session.client("ec2", region_name=region)
@@ -43,7 +47,13 @@ def scan_region(region, session=None, live_pricing=False):
     )
 
 
-def scan_regions(regions, session=None, live_pricing=False, workers=8, on_error=None):
+def scan_regions(
+    regions: list[str],
+    session: Session | None = None,
+    live_pricing: bool = False,
+    workers: int = 8,
+    on_error: Callable[[str, Exception], None] | None = None,
+) -> tuple[list[Finding], list[str]]:
     """Scan several regions concurrently.
 
     Each worker builds its own boto3 Session: Session objects are not

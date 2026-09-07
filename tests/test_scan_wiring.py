@@ -7,6 +7,9 @@ AMI still backs it.
 
 from datetime import datetime, timedelta, timezone
 
+import pytest
+
+from idle_hunter_lib import regions
 from idle_hunter_lib.models import Finding
 from idle_hunter_lib.regions import scan_region
 
@@ -161,7 +164,7 @@ class FakeSession:
         return FakeClient()
 
 
-def test_scan_region_finds_one_of_each_kind():
+def test_scan_region_finds_one_of_each_kind() -> None:
     findings = scan_region("eu-west-1", FakeSession())
     by_kind = {f.kind: f for f in findings}
 
@@ -189,7 +192,7 @@ def test_scan_region_finds_one_of_each_kind():
     assert by_kind["rds-idle"].confidence == 80  # zero connections in 30d
 
 
-def test_only_genuinely_orphaned_snapshots_are_reported():
+def test_only_genuinely_orphaned_snapshots_are_reported() -> None:
     orphans = [f for f in scan_region("eu-west-1", FakeSession()) if f.kind == "snapshot-orphaned"]
     # snap-live's volume still exists; snap-ami is counted by the AMI finding instead
     assert [f.id for f in orphans] == ["snap-orphan"]
@@ -197,13 +200,13 @@ def test_only_genuinely_orphaned_snapshots_are_reported():
 
 if __name__ == "__main__":
     for f in scan_region("eu-west-1", FakeSession()):
-        print(f"{f.confidence:3d} {f.kind:20s} {f.id:15s} ${f.monthly_usd}")
+        print(  # noqa: T201 — the manual smoke run at the bottom of this file
+            f"{f.confidence:3d} {f.kind:20s} {f.id:15s} ${f.monthly_usd}"
+        )
 
 
-def test_scan_regions_runs_in_parallel_and_survives_one_bad_region(monkeypatch):
+def test_scan_regions_runs_in_parallel_and_survives_one_bad_region(monkeypatch: pytest.MonkeyPatch) -> None:
     """A region that raises is reported and skipped, not fatal to the sweep."""
-    from idle_hunter_lib import regions
-
     seen = []
 
     def fake_scan_region(region, session=None, live_pricing=False):
@@ -228,10 +231,8 @@ def test_scan_regions_runs_in_parallel_and_survives_one_bad_region(monkeypatch):
     assert sorted(seen) == ["eu-broken-1", "eu-west-1", "us-east-1"]
 
 
-def test_single_region_does_not_start_a_pool(monkeypatch):
+def test_single_region_does_not_start_a_pool(monkeypatch: pytest.MonkeyPatch) -> None:
     """One region keeps the caller's session — no reason to build a second one."""
-    from idle_hunter_lib import regions
-
     used = {}
 
     def fake_scan_region(region, session=None, live_pricing=False):
@@ -242,5 +243,6 @@ def test_single_region_does_not_start_a_pool(monkeypatch):
     sentinel = object()
     findings, failed = regions.scan_regions(["eu-west-1"], session=sentinel)
 
-    assert findings == [] and failed == []
+    assert findings == []
+    assert failed == []
     assert used["session"] is sentinel

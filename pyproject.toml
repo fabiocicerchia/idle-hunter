@@ -29,9 +29,38 @@ py-modules = ["idle_hunter"]
 packages = ["idle_hunter_lib"]
 
 [tool.ruff]
-line-length = 100
+line-length = 120
 
 [tool.pytest.ini_options]
 # Without this the suite imports whatever `idle_hunter` is on sys.path — in a
 # bare checkout that is nothing, and `make test` fails at collection.
 pythonpath = ["."]
+
+[tool.ruff.lint]
+select = [
+  "E", "W", "F", "I", "N", "UP", "ANN", "ASYNC", "S", "B", "A", "C4", "DTZ",
+  "T20", "PT", "RET", "SIM", "PTH", "ERA", "TD", "FIX", "PLR2004", "TRY", "PL", "RUF",
+]
+ignore = [
+  "ANN401",      # Any in *args/**kwargs — FC-GEN-016's comment rule covers it
+  "TRY003",      # long messages inline; FC-GEN-022 wants them descriptive
+]
+
+[tool.ruff.lint.flake8-annotations]
+mypy-init-return = true
+
+[tool.ruff.lint.per-file-ignores]
+# `assert` is what a test is, and an expected value is the literal it compares
+# against -- naming it moves the assertion one step from the thing asserted.
+"tests/**" = [
+  "S101",     # `assert` is what a test is
+  "PLR2004",  # an expected value is the literal it compares against
+  "ANN001",   # a fixture or a fake's argument, named by the test that builds it
+  "ANN002",   # a fake's *args exist to swallow whatever the real call passes
+  "ANN003",   # ditto **kwargs
+  "ANN201",   # a fake's return value is whatever the code under test reads
+  "ANN202",
+  "ANN204",
+  "N803",     # the boto3 fakes mirror AWS's own PascalCase parameter names,
+              # which are the API's spelling and not this project's to change
+]

@@ -2,6 +2,8 @@
 
 from datetime import datetime, timedelta, timezone
 
+from idle_hunter_lib.types import Client
+
 LB_NAMESPACES = {
     "application": "AWS/ApplicationELB",
     "network": "AWS/NetworkELB",
@@ -9,7 +11,7 @@ LB_NAMESPACES = {
 }
 
 
-def cw_sum(cw, namespace, metric, dimensions, days=30):
+def cw_sum(cw: Client, namespace: str, metric: str, dimensions: list[dict[str, str]], days: int = 30) -> float | None:
     """Summed metric over `days`, or None when the metric reported nothing at all.
 
     None means "unknown", not "idle" — a resource with no datapoints may simply
