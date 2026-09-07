@@ -1,6 +1,7 @@
 """Monthly cost per unit: built-in estimates, or the Pricing API with --live-pricing."""
 
 import json
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 from botocore.exceptions import BotoCoreError, ClientError
@@ -90,28 +91,39 @@ def rds_engine_name(engine: str | None) -> str | None:
     return None
 
 
-def rds_shape(db: Resource) -> dict[str, str | None]:
-    """The four Pricing API filters that identify one instance's SKU."""
-    return {
+def rds_shape(db: Resource) -> dict[str, str]:
+    """The four Pricing API filters that identify one instance's SKU.
+
+    A filter AWS did not give us is left out rather than carried as None: the
+    hole is still a hole to `price`, which refuses to query on a partial filter
+    set, and every value that IS here is a string.
+    """
+    shape: dict[str, str | None] = {
         "instanceType": db.get("DBInstanceClass"),
         "databaseEngine": rds_engine_name(db.get("Engine")),
         "deploymentOption": "Multi-AZ" if db.get("MultiAZ") else "Single-AZ",
         "licenseModel": RDS_LICENCE_NAMES.get(db.get("LicenseModel", ""), "No license required"),
     }
+    return {k: v for k, v in shape.items() if v is not None}
 
 
-_PRICE_CACHE = {}
+_PRICE_CACHE: dict[tuple[str, str, tuple[tuple[str, Any], ...]], tuple[float, bool]] = {}
 
 
-def _lookup_price(session: Session, service_code: str, filters: list[dict[str, str]]) -> float | None:
-    """First positive on-demand USD price matching `filters`, or None."""
+def _lookup_price(session: Session, service_code: str, filters: Sequence[tuple[str, str]]) -> float | None:
+    """First positive on-demand USD price matching `filters`, or None.
+
+    `filters` are (field, value) pairs, which is what the caller builds and
+    what the loop below reads -- the annotation used to say list[dict].
+    """
     client = session.client("pricing", region_name=PRICING_API_REGION)
     resp = client.get_products(
         ServiceCode=service_code,
         Filters=[{"Type": "TERM_MATCH", "Field": k, "Value": v} for k, v in filters],
         MaxResults=20,
     )
-    for doc in resp.get("PriceList", []):
+    documents: list[str] = resp.get("PriceList", [])
+    for doc in documents:
         for term in json.loads(doc).get("terms", {}).get("OnDemand", {}).values():
             for dim in term.get("priceDimensions", {}).values():
                 price = float(dim.get("pricePerUnit", {}).get("USD", 0))
@@ -124,19 +136,32 @@ def _cache_key(key: str, region: str, params: dict[str, Any]) -> tuple[str, str,
     return (key, region, tuple(sorted(params.items())))
 
 
-def price(key: str, region: str, session: Session | None = None, live: bool = False, **params: Any) -> float:
+def price(
+    key: str,
+    region: str,
+    session: Session | None = None,
+    live: bool = False,
+    filters: Mapping[str, str] | None = None,
+) -> float:
     """Monthly USD per unit — Pricing API when `live`, else the built-in estimate.
 
-    `params` fill the None holes in this key's PRICE_QUERIES filters. A hole left
+    `filters` fill the None holes in this key's PRICE_QUERIES entry. A hole left
     unfilled falls back to the estimate rather than querying without it: a
     partial filter set matches some other shape's SKU and prices the wrong thing.
     """
     if not live or key not in PRICE_QUERIES:
         return PRICE_DEFAULTS[key]
-    ck = _cache_key(key, region, params)
+    ck = _cache_key(key, region, dict(filters or {}))
     if ck not in _PRICE_CACHE:
-        service, filters, months = PRICE_QUERIES[key]
-        resolved = tuple((k, params.get(k) if v is None else v) for k, v in filters)
+        service, query_filters, months = PRICE_QUERIES[key]
+        supplied = filters or {}
+        # A filter with a None value is a hole this key's caller fills from
+        # **params. It stays None here on purpose: the `all(...)` below is what
+        # refuses to query on a half-filled filter set, and a stringified None
+        # would sail through it and price some other shape's SKU.
+        resolved: tuple[tuple[str, object], ...] = tuple(
+            (k, supplied.get(k) if v is None else v) for k, v in query_filters
+        )
         found = None
         if all(v for _, v in resolved):
             # No pricing:GetProducts, no credentials, no endpoint, or a price
@@ -144,18 +169,19 @@ def price(key: str, region: str, session: Session | None = None, live: bool = Fa
             # Named rather than blanket: a bug in _lookup_price should surface,
             # not quietly read as "this shape has no price".
             try:
-                found = _lookup_price(session, service, (*resolved, ("regionCode", region)))
+                complete = tuple((k, str(v)) for k, v in resolved)
+                found = _lookup_price(session, service, (*complete, ("regionCode", region)))
             except (BotoCoreError, ClientError, ValueError, TypeError):
                 found = None
         _PRICE_CACHE[ck] = (found * months, True) if found else (PRICE_DEFAULTS[key], False)
     return _PRICE_CACHE[ck][0]
 
 
-def price_is_live(key: str, region: str, **params: Any) -> bool:
+def price_is_live(key: str, region: str, filters: Mapping[str, str] | None = None) -> bool:
     """Whether the price already resolved for these arguments came from the API.
 
     Read after price(), so a finding can say which of the two numbers the reader
     is looking at instead of implying a measurement that never happened.
     """
-    entry = _PRICE_CACHE.get(_cache_key(key, region, params))
+    entry = _PRICE_CACHE.get(_cache_key(key, region, dict(filters or {})))
     return bool(entry and entry[1])

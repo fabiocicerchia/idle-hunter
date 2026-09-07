@@ -64,3 +64,14 @@ mypy-init-return = true
   "N803",     # the boto3 fakes mirror AWS's own PascalCase parameter names,
               # which are the API's spelling and not this project's to change
 ]
+
+[tool.basedpyright]
+# FC-PY-003 asks for strict. The point of a type checker in CI is that it knows
+# the types: "unknown" is the finding, not a level of detail to relax away.
+typeCheckingMode = "strict"
+# Matches requires-python, so the checker rejects what the oldest supported
+# interpreter would reject rather than what this machine happens to run.
+pythonVersion = "3.10"
+# Third-party stubs are not this repository's to ship, and a missing one is a
+# packaging fact about someone else's project rather than a defect here.
+reportMissingTypeStubs = false

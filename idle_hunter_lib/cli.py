@@ -21,6 +21,7 @@ import sys
 
 from idle_hunter_lib.regions import scan_regions
 from idle_hunter_lib.render import render, render_json
+from idle_hunter_lib.types import Client, Resource, Session
 
 LOGGER = logging.getLogger(__name__)
 
@@ -70,11 +71,14 @@ def main(argv: list[str] | None = None) -> int:
     # must not require it.
     import boto3  # noqa: PLC0415
 
-    session = boto3.Session()
-    regions = [args.region]
+    # boto3 ships no annotations: this is where an untyped session crosses
+    # into the tool, and Session says what everything below expects.
+    session: Session = boto3.Session()  # pyright: ignore[reportUnknownMemberType]
+    regions: list[str] = [args.region]
     if args.all_regions:
-        ec2 = session.client("ec2", region_name=DEFAULT_REGION)
-        regions = [r["RegionName"] for r in ec2.describe_regions()["Regions"]]
+        ec2: Client = session.client("ec2", region_name=DEFAULT_REGION)
+        described: list[Resource] = ec2.describe_regions()["Regions"]
+        regions = [r["RegionName"] for r in described]
 
     findings, failed = scan_regions(regions, session, args.live_pricing, args.workers)
     # Completion order is non-deterministic once regions run in parallel, so

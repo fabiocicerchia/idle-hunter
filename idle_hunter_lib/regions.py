@@ -8,14 +8,14 @@ from functools import partial
 from idle_hunter_lib.models import Finding
 from idle_hunter_lib.pricing import price
 from idle_hunter_lib.scan import (
-    _scan_eips,
-    _scan_enis,
-    _scan_images,
-    _scan_load_balancers,
-    _scan_nat_gateways,
-    _scan_rds,
-    _scan_snapshots,
-    _scan_volumes,
+    scan_eips,
+    scan_enis,
+    scan_images,
+    scan_load_balancers,
+    scan_nat_gateways,
+    scan_rds,
+    scan_snapshots,
+    scan_volumes,
 )
 from idle_hunter_lib.types import Session
 
@@ -26,24 +26,26 @@ def scan_region(region: str, session: Session | None = None, live_pricing: bool 
     # As in cli: imported when a scan starts, not at module load.
     import boto3  # noqa: PLC0415
 
-    session = session or boto3.Session()
-    ec2 = session.client("ec2", region_name=region)
-    elb = session.client("elbv2", region_name=region)
-    cw = session.client("cloudwatch", region_name=region)
-    rds = session.client("rds", region_name=region)
-    price_of = partial(price, region=region, session=session, live=live_pricing)
+    # boto3 ships no annotations; this is the one place an untyped session
+    # crosses into the scan, and everything below takes it as a Session.
+    live_session: Session = session or boto3.Session()  # pyright: ignore[reportUnknownMemberType]
+    ec2 = live_session.client("ec2", region_name=region)
+    elb = live_session.client("elbv2", region_name=region)
+    cw = live_session.client("cloudwatch", region_name=region)
+    rds = live_session.client("rds", region_name=region)
+    price_of = partial(price, region=region, session=live_session, live=live_pricing)
 
-    volumes, live_volume_ids = _scan_volumes(ec2, region, price_of)
-    images, ami_snapshots = _scan_images(ec2, region, price_of)
+    volumes, live_volume_ids = scan_volumes(ec2, region, price_of)
+    images, ami_snapshots = scan_images(ec2, region, price_of)
     return (
         volumes
         + images
-        + _scan_eips(ec2, region, price_of)
-        + _scan_enis(ec2, region, price_of)
-        + _scan_load_balancers(elb, cw, region, price_of)
-        + _scan_nat_gateways(ec2, cw, region, price_of)
-        + _scan_rds(rds, cw, region, price_of)
-        + _scan_snapshots(ec2, region, price_of, live_volume_ids, ami_snapshots)
+        + scan_eips(ec2, region, price_of)
+        + scan_enis(ec2, region, price_of)
+        + scan_load_balancers(elb, cw, region, price_of)
+        + scan_nat_gateways(ec2, cw, region, price_of)
+        + scan_rds(rds, cw, region, price_of)
+        + scan_snapshots(ec2, region, price_of, live_volume_ids, ami_snapshots)
     )
 
 
@@ -52,7 +54,7 @@ def scan_regions(
     session: Session | None = None,
     live_pricing: bool = False,
     workers: int = 8,
-    on_error: Callable[[str, Exception], None] | None = None,
+    on_error: Callable[[str, BaseException], None] | None = None,
 ) -> tuple[list[Finding], list[str]]:
     """Scan several regions concurrently.
 
@@ -67,7 +69,8 @@ def scan_regions(
     if len(regions) == 1:
         return scan_region(regions[0], session, live_pricing), []
 
-    findings, failed = [], []
+    findings: list[Finding] = []
+    failed: list[str] = []
     with ThreadPoolExecutor(max_workers=max(1, min(workers, len(regions)))) as pool:
         pending = {pool.submit(scan_region, r, None, live_pricing): r for r in regions}
         for future in as_completed(pending):
@@ -75,7 +78,10 @@ def scan_regions(
             # .exception() rather than try/except around .result(): one bad
             # region must not lose the other 30, and asking the future what
             # went wrong says that without catching everything to find out.
-            exc = future.exception()
+            # BaseException, because that is what a future carries: a
+            # KeyboardInterrupt in a worker is not something to hand to an
+            # error callback that expects a failed region.
+            exc: BaseException | None = future.exception()
             if exc is None:
                 findings.extend(future.result())
                 continue

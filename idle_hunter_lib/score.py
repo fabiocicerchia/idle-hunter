@@ -18,7 +18,9 @@ RDS_IDLE_CONNECTIONS = 30  # 30d: a monitoring probe once a day, not an applicat
 LB_STALE_DAYS = 30
 
 
-def age_days(created: datetime) -> int:
+def age_days(created: datetime | str) -> int:
+    """Days since `created`, which AWS hands over as either a datetime or a
+    string depending on which API and which paginator produced it."""
     if isinstance(created, str):
         created = datetime.fromisoformat(created.replace("Z", "+00:00"))
     return (datetime.now(timezone.utc) - created).days

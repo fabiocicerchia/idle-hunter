@@ -10,12 +10,14 @@ from typing import NoReturn
 import pytest
 
 from idle_hunter_lib import cli, regions
+from idle_hunter_lib.models import Finding
+from idle_hunter_lib.types import Session
 
 
 def test_a_failed_region_is_logged_when_the_caller_passes_no_handler(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
-    def boom(region, session=None, live_pricing=False) -> NoReturn:
+    def boom(region: str, session: Session | None = None, live_pricing: bool = False) -> NoReturn:
         raise RuntimeError("AccessDenied")
 
     monkeypatch.setattr(regions, "scan_region", boom)
@@ -30,7 +32,10 @@ def test_a_failed_region_is_logged_when_the_caller_passes_no_handler(
 def test_main_warns_about_the_regions_it_lost_and_exits_nonzero(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    monkeypatch.setattr(cli, "scan_regions", lambda *a, **kw: ([], ["eu-west-3"]))
+    def one_region_lost(*_args: object, **_kwargs: object) -> tuple[list[Finding], list[str]]:
+        return [], ["eu-west-3"]
+
+    monkeypatch.setattr(cli, "scan_regions", one_region_lost)
     with caplog.at_level(logging.WARNING, logger="idle_hunter_lib.cli"):
         code = cli.main(["scan", "--region", "eu-west-3"])
 
@@ -40,5 +45,8 @@ def test_main_warns_about_the_regions_it_lost_and_exits_nonzero(
 
 
 def test_main_exits_zero_when_no_region_failed(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(cli, "scan_regions", lambda *a, **kw: ([], []))
+    def nothing_lost(*_args: object, **_kwargs: object) -> tuple[list[Finding], list[str]]:
+        return [], []
+
+    monkeypatch.setattr(cli, "scan_regions", nothing_lost)
     assert cli.main(["scan", "--region", "eu-west-3"]) == 0
