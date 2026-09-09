@@ -75,3 +75,9 @@ pythonVersion = "3.10"
 # Third-party stubs are not this repository's to ship, and a missing one is a
 # packaging fact about someone else's project rather than a defect here.
 reportMissingTypeStubs = false
+
+# The man page rides along in the wheel: `pip install` puts it under
+# <prefix>/share/man/man1, which is on the default manpath for a system install
+# and for a --user one alike.
+[tool.setuptools.data-files]
+"share/man/man1" = ["man/idle-hunter.1"]
