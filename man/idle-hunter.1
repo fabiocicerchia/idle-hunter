@@ -1,0 +1,70 @@
+.TH IDLE\-HUNTER 1 "2026-09" "idle-hunter" "User Commands"
+.SH NAME
+idle-hunter \- find zombie AWS resources with a confidence-to-delete score
+.SH SYNOPSIS
+.B idle-hunter
+.B scan
+.RI [ options ]
+.SH DESCRIPTION
+Finds resources that are costing money and doing nothing \(em unattached EBS
+volumes, unassociated Elastic IPs, load balancers with no targets \(em and
+scores each one by how safe it looks to delete, rather than only listing it.
+.PP
+Nothing is ever deleted.
+.B \-\-commands
+prints the deletion commands for you to review and run.
+.SH COMMANDS
+.TP
+.B scan
+Scan for zombie resources.
+.SH OPTIONS
+.TP
+.BI \-\-region " REGION"
+Region to scan.
+.TP
+.B \-\-all\-regions
+Scan every region.
+.TP
+.BI \-\-min\-confidence " N"
+Only report findings at or above this confidence.
+.TP
+.B \-\-commands
+Print deletion commands. They are never executed.
+.TP
+.B \-\-live\-pricing
+Look up real prices via the Pricing API. Needs
+.BR pricing:GetProducts .
+.TP
+.BI \-\-workers " N"
+Regions scanned in parallel with
+.B \-\-all\-regions
+(default 8). Lower it if the account is being throttled.
+.TP
+.B \-\-json
+Machine-readable output.
+.SH EXIT STATUS
+.TP
+.B 0
+A scan completed.
+.TP
+.B non-zero
+AWS could not be queried.
+.SH EXAMPLES
+.PP
+Scan one region:
+.PP
+.RS
+.B idle-hunter scan \-\-region eu-west-1
+.RE
+.PP
+Everywhere, only the confident findings, with the commands:
+.PP
+.RS
+.B idle-hunter scan \-\-all\-regions \-\-min\-confidence 80 \-\-commands
+.RE
+.SH SEE ALSO
+.BR cost-diff (1),
+.BR iam-shrink (1).
+Project documentation:
+.UR https://github.com/fabiocicerchia/idle-hunter
+.UE
