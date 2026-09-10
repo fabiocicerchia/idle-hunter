@@ -3,7 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>idle-hunter — AWS zombie resources scored by how safe they are to delete, with the monthly cost you would reclaim.</title>
+<title>
+  idle-hunter — AWS zombie resources scored by how safe they are to delete, with the monthly cost you would reclaim.
+</title>
 <meta name="description" content="A zombie-resource scanner for AWS: unattached EBS volumes, unassociated Elastic IPs, load balancers with zero targets, idle NAT gateways, orphaned snapshots and unused AMIs — each with a confidence-to-delete score (0–100) and the monthly cost you&#x27;d reclaim.">
 <!-- The palette lives in the docs theme, so the splash and /docs/ cannot drift
      apart. The path is relative to the *deployed* layout: splash at /, rendered
@@ -44,8 +46,14 @@ footer{margin-top:2.2rem;color:#5c6684;font-size:.82rem}
 <body>
 <div class="card">
   <h1>🧟 idle-hunter</h1>
-  <p class="tagline">AWS zombie resources scored by how safe they are to delete, with the monthly cost you would reclaim.</p>
-  <p class="desc">A zombie-resource scanner for AWS: unattached EBS volumes, unassociated Elastic IPs, load balancers with zero targets, idle NAT gateways, orphaned snapshots and unused AMIs — each with a confidence-to-delete score (0–100) and the monthly cost you&#x27;d reclaim.</p>
+  <p class="tagline">
+    AWS zombie resources scored by how safe they are to delete, with the monthly cost you would reclaim.
+  </p>
+  <p class="desc">
+    A zombie-resource scanner for AWS: unattached EBS volumes, unassociated Elastic IPs, load balancers with zero
+    targets, idle NAT gateways, orphaned snapshots and unused AMIs — each with a confidence-to-delete score (0–100) and
+    the monthly cost you&#x27;d reclaim.
+  </p>
   <div class="install-label">Install</div>
   <pre><code>pipx install .</code></pre>
   <div class="links">
