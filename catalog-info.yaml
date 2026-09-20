@@ -1,0 +1,23 @@
+# Backstage catalog entry, read by paved's scorecard plugin.
+#
+# Every check paved scores is derived from this file alone — no cluster
+# access, no CI credentials. What is absent here is absent from the score.
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: idle-hunter
+  description: >-
+      A zombie-resource scanner for AWS: unattached EBS volumes, unassociated Elastic IPs, load balancers
+      with zero targets — each with a confidence-to-delete score (0–100) and the monthly cost you'd…
+  annotations:
+    github.com/project-slug: fabiocicerchia/idle-hunter
+    backstage.io/source-location: url:https://github.com/fabiocicerchia/idle-hunter/
+    backstage.io/techdocs-ref: dir:.
+  links:
+    - url: https://github.com/fabiocicerchia/idle-hunter
+      title: Source
+spec:
+  type: library
+  lifecycle: production
+  owner: group:default/kodebeat
+  system: oss-tools
