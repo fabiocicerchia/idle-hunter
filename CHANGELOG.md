@@ -5,6 +5,14 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.1](https://github.com/fabiocicerchia/idle-hunter/compare/v1.3.0...v1.3.1) (2026-09-20)
+
+
+### Bug Fixes
+
+* **ci:** keep actions: read on the job that uploads sarif ([#69](https://github.com/fabiocicerchia/idle-hunter/issues/69)) ([9bccc7b](https://github.com/fabiocicerchia/idle-hunter/commit/9bccc7bd3d47c18605ad3d97873d776a5c109f02))
+* **deps:** restore the boto3 tree to requirements-dev.txt ([#70](https://github.com/fabiocicerchia/idle-hunter/issues/70)) ([1afb873](https://github.com/fabiocicerchia/idle-hunter/commit/1afb87390dda3fe88d28e403f7de22ac8da5e75a))
+
 ## [1.3.0](https://github.com/fabiocicerchia/idle-hunter/compare/v1.2.1...v1.3.0) (2026-09-09)
 
 
