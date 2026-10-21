@@ -30,7 +30,7 @@ print("set -euo pipefail")
 print()
 
 with open(path) as fh:
-    findings = json.load(fh)
+    findings = json.load(fh)["findings"]
 
 for f in findings:
     print(f"# [{f['confidence']}%] {f['kind']} {f['id']} - {f['note']}")
