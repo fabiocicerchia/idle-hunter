@@ -6,6 +6,9 @@ from typing import TextIO
 
 from idle_hunter_lib.models import Finding
 
+# Bump on any change a consumer of --json would notice; cloudledger refuses versions it does not know.
+JSON_VERSION = 1
+
 
 def render(findings: list[Finding], min_confidence: int = 0, show_commands: bool = False) -> str:
     rows = [f for f in findings if f.confidence >= max(min_confidence, 1)]
@@ -25,7 +28,10 @@ def render_json(findings: list[Finding], min_confidence: int, stream: TextIO) ->
     # --min-confidence applies here too: a script generated from this output
     # must not contain deletes the caller asked to be filtered out.
     json.dump(
-        [asdict(f) for f in findings if f.confidence >= min_confidence],
+        {
+            "version": JSON_VERSION,
+            "findings": [asdict(f) for f in findings if f.confidence >= min_confidence],
+        },
         stream,
         indent=2,
         default=str,

@@ -1,3 +1,4 @@
+import io
 import json
 from datetime import datetime, timedelta, timezone
 from typing import NoReturn
@@ -12,7 +13,7 @@ from idle_hunter_lib.pricing import (
     rds_engine_name,
     rds_shape,
 )
-from idle_hunter_lib.render import render
+from idle_hunter_lib.render import render, render_json
 from idle_hunter_lib.score import (
     NAT_IDLE_BYTES,
     score_empty_lb,
@@ -104,6 +105,21 @@ def test_render_sorts_and_filters() -> None:
     assert "eip-1" in out
     assert "vol-1" not in out
     assert "1 finding(s)" in out
+
+
+def test_json_output_is_versioned() -> None:
+    # cloudledger ingests this shape and refuses an unknown version: bump it on any change.
+    fs = [
+        finding("ebs-unattached", "vol-1", "eu-west-1", 60, 8.0, "n1"),
+        finding("eip-unassociated", "eip-1", "eu-west-1", 90, 3.6, "n2"),
+    ]
+    out = io.StringIO()
+    render_json(fs, 80, out)
+    doc = json.loads(out.getvalue())
+    assert list(doc) == ["version", "findings"]
+    assert doc["version"] == 1
+    assert [f["id"] for f in doc["findings"]] == ["eip-1"]
+    assert list(doc["findings"][0]) == ["kind", "id", "region", "confidence", "monthly_usd", "note", "command"]
 
 
 def test_eni_score_zero_when_a_service_owns_it() -> None:

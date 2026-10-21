@@ -139,8 +139,9 @@ query, so an account with many of them dominates the runtime.
 idle-hunter scan --all-regions --json > findings.json
 ```
 
-The JSON has the full finding — `kind`, `id`, `region`, `confidence`,
-`monthly_usd`, `note`, `command`. `--min-confidence` applies to it exactly as it
+The JSON is `{"version": 1, "findings": [...]}`, each finding carrying
+`kind`, `id`, `region`, `confidence`, `monthly_usd`, `note`, `command`.
+`version` changes whenever that shape does. `--min-confidence` applies to it exactly as it
 does to the report (the default, 0, keeps everything), so anything generating a
 script from this output cannot end up with entries you asked to filter out.
 
