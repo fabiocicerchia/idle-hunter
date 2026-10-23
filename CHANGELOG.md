@@ -5,6 +5,13 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0](https://github.com/fabiocicerchia/idle-hunter/compare/v1.3.1...v1.4.0) (2026-10-23)
+
+
+### Features
+
+* version the --json output ([#86](https://github.com/fabiocicerchia/idle-hunter/issues/86)) ([8d926d6](https://github.com/fabiocicerchia/idle-hunter/commit/8d926d6e6d5708ff52641c5cee4f964f29dbb3a5))
+
 ## [1.3.1](https://github.com/fabiocicerchia/idle-hunter/compare/v1.3.0...v1.3.1) (2026-09-20)
 
 
