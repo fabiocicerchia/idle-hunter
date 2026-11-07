@@ -3,7 +3,7 @@ Feature: Finding idle databases
   Lets an operator see RDS instances nobody connects to, without ever flagging a database on missing evidence.
 
   Background:
-    Given Given the operator's AWS account in region eu-west-1
+    Given the operator's AWS account in region eu-west-1
 
   @id:zombie-detection.databases.001 @rule:zombie-detection.databases.idle-rds-requires-available-and-evidence @verified @source:idle_hunter_lib/scan.py#scan_rds @test:tests/test_scan_wiring.py#test_scan_region_finds_one_of_each_kind
   Scenario Outline: A database is reported idle only when it is available and CloudWatch shows almost no connections

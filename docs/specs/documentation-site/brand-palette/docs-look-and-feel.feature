@@ -9,7 +9,7 @@ Feature: Branded, readable documentation site
   Scenario: The docs and the splash page share one accent colour pair
     Given the accent pair is cyan #22d3ee and indigo #6366f1
     When a reader opens the splash page and then the rendered documentation
-    Then the header chrome of the documentation uses indigo #6366f1
+    Then the documentation's primary colour, and its links in light mode, use indigo #6366f1
     And interactive accents of the documentation use cyan #22d3ee
     And the splash page draws its accents from the same cyan and indigo pair
 

@@ -23,7 +23,7 @@ Feature: Machine-readable findings
 
   @id:reporting.json-output.003 @rule:reporting.json-output.zero-confidence-included @inferred @source:idle_hunter_lib/render.py#render_json @questionable
   Scenario: Without a minimum confidence, 0% findings are included in the JSON
-    Given the scan found a load balancer lb-app-1 that still has registered targets, scored 0%
+    Given the findings handed to the JSON output include lb-app-1 scored 0% (no scan check emits a 0% finding today)
     And the scan found an Elastic IP eip-1 at 90% confidence
     When a script reads the JSON output of a scan without a minimum confidence
     Then the findings list holds both lb-app-1 and eip-1

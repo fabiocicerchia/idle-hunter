@@ -3,7 +3,7 @@ Feature: Finding empty load balancers
   Lets an operator see load balancers that are billing hourly while routing to nothing.
 
   Background:
-    Given Given the operator's AWS account in region eu-west-1
+    Given the operator's AWS account in region eu-west-1
 
   @id:zombie-detection.load-balancers.001 @rule:zombie-detection.load-balancers.no-registered-targets @verified @source:idle_hunter_lib/scan.py#scan_load_balancers @test:tests/test_scan_wiring.py#test_scan_region_finds_one_of_each_kind
   Scenario Outline: A load balancer with no registered targets in any target group is reported, and says when it also had no traffic

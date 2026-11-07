@@ -3,7 +3,7 @@ Feature: Finding storage leftovers
   Lets an operator see unattached EBS volumes, orphaned snapshots and unused AMIs with the monthly storage cost each one is still billing.
 
   Background:
-    Given Given the operator's AWS account in region eu-west-1
+    Given the operator's AWS account in region eu-west-1
 
   @id:zombie-detection.storage.001 @rule:zombie-detection.storage.unattached-volume-reported @verified @source:idle_hunter_lib/scan.py#scan_volumes @test:tests/test_scan_wiring.py#test_scan_region_finds_one_of_each_kind
   Scenario: An unattached volume is reported with its storage cost, an attached one is not

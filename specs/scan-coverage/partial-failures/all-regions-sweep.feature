@@ -12,11 +12,11 @@ Feature: Sweeping several regions at once
     And region(s) <failing> refuse access with AccessDenied
     When the operator sweeps the regions
     Then the report contains findings from <reported> only
-    And the operator is warned "<region>: AccessDenied" for each region in <failing>
+    And for each region in <failing> the operator is warned with a line naming the region and its AccessDenied error
     And <failing> are listed as missing from this report
 
     Examples:
-      | regions                           | failing              | reported               | region      |
-      | eu-west-1, eu-broken-1, us-east-1 | eu-broken-1          | eu-west-1, us-east-1   | eu-broken-1 |
-      | eu-west-1, eu-west-2              | eu-west-1, eu-west-2 | no region (0 findings) | eu-west-1   |
-      | eu-west-1, us-east-1              | none                 | eu-west-1, us-east-1   | none        |
+      | regions                           | failing              | reported               |
+      | eu-west-1, eu-broken-1, us-east-1 | eu-broken-1          | eu-west-1, us-east-1   |
+      | eu-west-1, eu-west-2              | eu-west-1, eu-west-2 | no region (0 findings) |
+      | eu-west-1, us-east-1              | none                 | eu-west-1, us-east-1   |

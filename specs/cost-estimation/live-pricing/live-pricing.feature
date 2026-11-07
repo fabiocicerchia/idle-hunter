@@ -16,8 +16,8 @@ Feature: Pricing findings from the AWS Pricing API
       | Elastic IP          | 0.005  | per hour      | 3.65        |
       | NAT gateway         | 0.050  | per hour      | 36.50       |
       | load balancer       | 0.0252 | per hour      | 18.40       |
-      | EBS volume of 1 GiB | 0.088  | per GiB-month | 0.088       |
-      | snapshot of 1 GiB   | 0.053  | per GiB-month | 0.053       |
+      | EBS volume of 1 GiB | 0.088  | per GiB-month | 0.09        |
+      | snapshot of 1 GiB   | 0.053  | per GiB-month | 0.05        |
 
   @id:cost-estimation.live-pricing.002 @rule:cost.live.lookup-failure-falls-back @verified @source:idle_hunter_lib/pricing.py#price @test:tests/test_idle_hunter.py#test_price_falls_back_to_estimates_without_live_lookup @questionable
   Scenario: A failed live price lookup falls back to the built-in price

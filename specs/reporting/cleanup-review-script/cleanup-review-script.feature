@@ -20,7 +20,7 @@ Feature: Turning a scan into a cleanup script for review
     When the operator generates the cleanup script for eu-west-1
     Then no AWS resource is created, changed or deleted
     And the script is written to standard output for the operator to save and edit
-    And it opens with "# Generated from: idle-hunter scan --region eu-west-1 --min-confidence 80"
+    And after its "#!/usr/bin/env bash" line it reads "# Generated from: idle-hunter scan --region eu-west-1 --min-confidence 80"
     And it then reads "# Review every line before running. Delete what you are unsure about."
 
   @id:reporting.cleanup-review-script.003 @rule:reporting.cleanup-review-script.annotated-finding-blocks @inferred @source:examples/basic/review.sh#review.sh
@@ -28,7 +28,7 @@ Feature: Turning a scan into a cleanup script for review
     Given the scan finds a <kind> finding <id> at <confidence>% with note "<note>", about $<cost>/mo, and suggested command "<command>"
     When the operator generates the cleanup script
     Then the block starts with "# [<confidence>%] <kind> <id> - <note>"
-    And followed by "#   ~$<cost>/mo (estimate, not your price)"
+    And it is followed by "#   ~$<cost>/mo (estimate, not your price)"
     And then the line "<line>"
 
     Examples:
@@ -58,7 +58,7 @@ Feature: Turning a scan into a cleanup script for review
   @id:reporting.cleanup-review-script.006 @rule:reporting.cleanup-review-script.region-required @inferred @source:examples/basic/review.sh#review.sh
   Scenario: The script refuses to run without a region
     When the operator generates the cleanup script without naming a region
-    Then it prints "usage: review.sh <region> [min-confidence]" on standard error
+    Then it prints an error containing "usage: review.sh <region> [min-confidence]" on standard error
     And it exits non-zero and writes no script
     And no scan is run
 
@@ -66,6 +66,6 @@ Feature: Turning a scan into a cleanup script for review
   Scenario: A scan that loses its region produces no cleanup script
     Given the scan of eu-west-1 fails, for example because the credentials are denied
     When the operator generates the cleanup script for eu-west-1
-    Then the scan's warning that the region is missing appears on standard error
+    Then the scan's access error appears on standard error
     And the operator gets no script: no header, no blocks and no summary line
-    And the command exits with the scan's status 3
+    And the command exits with the scan's non-zero status

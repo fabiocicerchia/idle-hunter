@@ -8,7 +8,7 @@ Feature: Telling a complete scan from a partial one
   @id:command-line.exit-status.001 @rule:command-line.exit-status.lost-region-exits-3 @verified @source:idle_hunter_lib/cli.py#main @test:tests/test_cli.py#test_main_warns_about_the_regions_it_lost_and_exits_nonzero
   Scenario: A scan that lost a region still prints its report but exits 3 and names the missing regions
     Given region "eu-west-3" could not be scanned
-    When the operator runs a scan
+    When the operator runs an all-regions scan
     Then the report of the findings that were gathered is printed on stdout
     And stderr shows "WARNING: 1 region(s) failed and are missing from this report: eu-west-3"
     And the command exits with status 3

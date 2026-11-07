@@ -7,10 +7,10 @@ Feature: Lowering confidence for resources owned by infrastructure-as-code
 
   @id:confidence-scoring.iac-ownership.001 @rule:confidence-scoring.iac-ownership.penalty-with-floor @verified @source:idle_hunter_lib/models.py#finding @test:tests/test_idle_hunter.py#test_iac_managed_tags_lower_the_score @test:tests/test_scan_wiring.py#test_scan_region_finds_one_of_each_kind
   Scenario Outline: An IaC-owned zombie loses 30 confidence points, never dropping below 5, and is flagged for stack deletion
-    Given an unattached EBS volume vol-0abc1234 that would score <base> confidence
-    And the volume is tagged "terraform:module" = "vpc"
+    Given a zombie resource res-0abc1234 that its check would score <base> confidence
+    And the resource is tagged "terraform:module" = "vpc"
     When the operator runs a scan
-    Then the finding for vol-0abc1234 shows confidence <shown>
+    Then the finding for res-0abc1234 shows confidence <shown>
     And its note ends with "— IaC-managed (delete via the stack, not the CLI)"
 
     Examples:

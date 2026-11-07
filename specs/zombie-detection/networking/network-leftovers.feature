@@ -3,7 +3,7 @@ Feature: Finding network leftovers
   Lets an operator see Elastic IPs, network interfaces and NAT gateways that are billing or pinning resources without doing any work.
 
   Background:
-    Given Given the operator's AWS account in region eu-west-1
+    Given the operator's AWS account in region eu-west-1
 
   @id:zombie-detection.networking.001 @rule:zombie-detection.networking.unassociated-eip-reported @verified @source:idle_hunter_lib/scan.py#scan_eips @test:tests/test_scan_wiring.py#test_scan_region_finds_one_of_each_kind
   Scenario: An Elastic IP not associated with anything is reported, an associated one is not
