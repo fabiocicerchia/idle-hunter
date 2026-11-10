@@ -462,7 +462,19 @@
   "idle-hunter/idle-hunter": [],
   "idle-hunter/makefile": []
  },
- "retired": [],
+ "retired": [
+  "scan-coverage.single-region.003",
+  "scan-coverage.single-region.002",
+  "reporting.findings.001",
+  "reporting.cleanup-commands.001",
+  "zombie-detection.load-balancers.002",
+  "zombie-detection.usage-metrics.001",
+  "zombie-detection.usage-metrics.002",
+  "zombie-detection.databases.002",
+  "confidence-scoring.scoring-rules.002",
+  "reporting.json-output.003",
+  "reporting.text-report.004"
+ ],
  "scenarios": {
   "command-line.exit-status.001": {
    "file": "specs/command-line/exit-status/scan-exit-status.feature",
@@ -596,16 +608,6 @@
    "tests": [
     "tests/test_idle_hunter.py#test_volume_score_grows_with_age_and_caps"
    ]
-  },
-  "confidence-scoring.scoring-rules.002": {
-   "file": "specs/confidence-scoring/scoring-rules/zombie-confidence-scores.feature",
-   "fingerprint": "73eff9016de9",
-   "human": false,
-   "rule": "scoring.eip.unassociated-address-scores-90",
-   "source": "idle_hunter_lib/score.py#score_unassociated_eip",
-   "status": "inferred",
-   "test": "",
-   "tests": []
   },
   "confidence-scoring.scoring-rules.003": {
    "file": "specs/confidence-scoring/scoring-rules/zombie-confidence-scores.feature",
@@ -790,16 +792,6 @@
    "test": "",
    "tests": []
   },
-  "reporting.cleanup-commands.001": {
-   "file": "specs/reporting/cleanup-commands/cleanup-commands.feature",
-   "fingerprint": "191dbb68efde",
-   "human": false,
-   "rule": "reporting.cleanup-commands.shown-only-on-request",
-   "source": "idle_hunter_lib/render.py#render",
-   "status": "inferred",
-   "test": "",
-   "tests": []
-  },
   "reporting.cleanup-commands.002": {
    "file": "specs/reporting/cleanup-commands/cleanup-commands.feature",
    "fingerprint": "191dbb68efde",
@@ -892,18 +884,6 @@
    "test": "",
    "tests": []
   },
-  "reporting.findings.001": {
-   "file": "specs/reporting/findings/finding-record.feature",
-   "fingerprint": "be0260211d10",
-   "human": false,
-   "rule": "reporting.findings.field-order",
-   "source": "idle_hunter_lib/models.py#Finding",
-   "status": "verified",
-   "test": "tests/test_idle_hunter.py#test_json_output_is_versioned",
-   "tests": [
-    "tests/test_idle_hunter.py#test_json_output_is_versioned"
-   ]
-  },
   "reporting.findings.002": {
    "file": "specs/reporting/findings/finding-record.feature",
    "fingerprint": "381542a7f3b8",
@@ -938,16 +918,6 @@
     "tests/test_idle_hunter.py#test_json_output_is_versioned"
    ]
   },
-  "reporting.json-output.003": {
-   "file": "specs/reporting/json-output/json-output.feature",
-   "fingerprint": "778eb6f857cd",
-   "human": false,
-   "rule": "reporting.json-output.zero-confidence-included",
-   "source": "idle_hunter_lib/render.py#render_json",
-   "status": "inferred",
-   "test": "",
-   "tests": []
-  },
   "reporting.text-report.001": {
    "file": "specs/reporting/text-report/text-report.feature",
    "fingerprint": "191dbb68efde",
@@ -980,16 +950,6 @@
     "tests/test_idle_hunter.py#test_render_sorts_and_filters"
    ]
   },
-  "reporting.text-report.004": {
-   "file": "specs/reporting/text-report/text-report.feature",
-   "fingerprint": "191dbb68efde",
-   "human": false,
-   "rule": "reporting.text-report.zero-confidence-never-shown",
-   "source": "idle_hunter_lib/render.py#render",
-   "status": "inferred",
-   "test": "",
-   "tests": []
-  },
   "scan-coverage.partial-failures.001": {
    "file": "specs/scan-coverage/partial-failures/all-regions-sweep.feature",
    "fingerprint": "7e3f1ebc848f",
@@ -1015,28 +975,6 @@
     "tests/test_scan_wiring.py#test_scan_region_finds_one_of_each_kind"
    ]
   },
-  "scan-coverage.single-region.002": {
-   "file": "specs/scan-coverage/single-region/single-region-scan.feature",
-   "fingerprint": "2a8504c7eb15",
-   "human": false,
-   "rule": "zombie-detection.storage.snapshot-in-use-not-orphaned",
-   "source": "idle_hunter_lib/regions.py#scan_region",
-   "status": "verified",
-   "test": "tests/test_scan_wiring.py#test_only_genuinely_orphaned_snapshots_are_reported",
-   "tests": [
-    "tests/test_scan_wiring.py#test_only_genuinely_orphaned_snapshots_are_reported"
-   ]
-  },
-  "scan-coverage.single-region.003": {
-   "file": "specs/scan-coverage/single-region/single-region-scan.feature",
-   "fingerprint": "7e3f1ebc848f",
-   "human": false,
-   "rule": "scan-coverage.single-region.failure-aborts-scan",
-   "source": "idle_hunter_lib/regions.py#scan_regions",
-   "status": "inferred",
-   "test": "",
-   "tests": []
-  },
   "zombie-detection.databases.001": {
    "file": "specs/zombie-detection/databases/idle-databases.feature",
    "fingerprint": "668a60536166",
@@ -1049,16 +987,6 @@
     "tests/test_scan_wiring.py#test_scan_region_finds_one_of_each_kind"
    ]
   },
-  "zombie-detection.databases.002": {
-   "file": "specs/zombie-detection/databases/idle-databases.feature",
-   "fingerprint": "668a60536166",
-   "human": false,
-   "rule": "zombie-detection.databases.rds-cost-says-whether-priced-or-baseline",
-   "source": "idle_hunter_lib/scan.py#scan_rds",
-   "status": "inferred",
-   "test": "",
-   "tests": []
-  },
   "zombie-detection.load-balancers.001": {
    "file": "specs/zombie-detection/load-balancers/empty-load-balancers.feature",
    "fingerprint": "037220be1ac4",
@@ -1070,16 +998,6 @@
    "tests": [
     "tests/test_scan_wiring.py#test_scan_region_finds_one_of_each_kind"
    ]
-  },
-  "zombie-detection.load-balancers.002": {
-   "file": "specs/zombie-detection/load-balancers/empty-load-balancers.feature",
-   "fingerprint": "037220be1ac4",
-   "human": false,
-   "rule": "zombie-detection.load-balancers.with-targets-not-reported",
-   "source": "idle_hunter_lib/scan.py#scan_load_balancers",
-   "status": "inferred",
-   "test": "",
-   "tests": []
   },
   "zombie-detection.networking.001": {
    "file": "specs/zombie-detection/networking/network-leftovers.feature",
@@ -1147,32 +1065,6 @@
    "human": false,
    "rule": "zombie-detection.storage.unused-ami-reported",
    "source": "idle_hunter_lib/scan.py#scan_images",
-   "status": "verified",
-   "test": "tests/test_scan_wiring.py#test_scan_region_finds_one_of_each_kind",
-   "tests": [
-    "tests/test_scan_wiring.py#test_scan_region_finds_one_of_each_kind"
-   ]
-  },
-  "zombie-detection.usage-metrics.001": {
-   "file": "specs/zombie-detection/usage-metrics/usage-metrics-evidence.feature",
-   "fingerprint": "b12222a1b2ca",
-   "human": false,
-   "rule": "usage-metrics.evidence.no-activity-data-is-unknown-not-idle",
-   "source": "idle_hunter_lib/metrics.py#cw_sum",
-   "status": "verified",
-   "test": "tests/test_idle_hunter.py#test_nat_score_needs_a_metric",
-   "tests": [
-    "tests/test_idle_hunter.py#test_nat_score_needs_a_metric",
-    "tests/test_idle_hunter.py#test_rds_score_treats_missing_metrics_as_unknown",
-    "tests/test_idle_hunter.py#test_lb_score_boosted_by_zero_traffic"
-   ]
-  },
-  "zombie-detection.usage-metrics.002": {
-   "file": "specs/zombie-detection/usage-metrics/usage-metrics-evidence.feature",
-   "fingerprint": "b12222a1b2ca",
-   "human": false,
-   "rule": "usage-metrics.evidence.zero-activity-total-proves-idle",
-   "source": "idle_hunter_lib/metrics.py#cw_sum",
    "status": "verified",
    "test": "tests/test_scan_wiring.py#test_scan_region_finds_one_of_each_kind",
    "tests": [

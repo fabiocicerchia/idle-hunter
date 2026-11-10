@@ -20,12 +20,6 @@ Feature: Scoring how safe a zombie resource is to delete
       | 365 | has           | 85         |
       | 365 | does not have | 95         |
 
-  @id:confidence-scoring.scoring-rules.002 @rule:scoring.eip.unassociated-address-scores-90 @inferred @source:idle_hunter_lib/score.py#score_unassociated_eip
-  Scenario: An unassociated Elastic IP always scores 90
-    Given Elastic IP 203.0.113.10 (eipalloc-0abc) is not associated with anything
-    When the operator scans eu-west-1
-    Then eipalloc-0abc is reported as eip-unassociated with confidence 90
-
   @id:confidence-scoring.scoring-rules.003 @rule:scoring.eni.service-owned-interface-never-reported @verified @source:idle_hunter_lib/score.py#score_unattached_eni @test:tests/test_idle_hunter.py#test_eni_score_zero_when_a_service_owns_it
   Scenario Outline: A detached network interface owned by an AWS service is never reported
     Given a detached network interface eni-0f1e2d that <owner> created

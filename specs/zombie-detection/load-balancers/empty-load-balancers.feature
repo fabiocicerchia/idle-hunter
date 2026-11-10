@@ -17,9 +17,3 @@ Feature: Finding empty load balancers
       | traffic              | note                                                        |
       | 0 bytes              | application LB with 0 registered targets, no traffic in 30d |
       | no datapoints at all | application LB with 0 registered targets                    |
-
-  @id:zombie-detection.load-balancers.002 @rule:zombie-detection.load-balancers.with-targets-not-reported @inferred @source:idle_hunter_lib/scan.py#scan_load_balancers
-  Scenario: A load balancer with at least one registered target is not reported
-    Given network load balancer api-nlb has 2 targets registered
-    When the operator scans the region
-    Then api-nlb is not reported

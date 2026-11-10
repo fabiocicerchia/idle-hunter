@@ -38,11 +38,3 @@ Feature: Reading the scan report
       | 80  | eip-1 only      | 1     |
       | 60  | eip-1 and vol-1 | 2     |
       | 95  | no findings     | 0     |
-
-  @id:reporting.text-report.004 @rule:reporting.text-report.zero-confidence-never-shown @inferred @source:idle_hunter_lib/render.py#render @questionable
-  Scenario: A resource scored 0% is never shown in the report, even with no minimum confidence
-    Given the findings handed to the report include lb-app-1 scored 0% (no scan check emits a 0% finding today)
-    And the scan found an Elastic IP eip-1 at 90% confidence
-    When the operator reads the report without choosing a minimum confidence
-    Then the report lists eip-1 only
-    And the first line counts 1 finding(s)
