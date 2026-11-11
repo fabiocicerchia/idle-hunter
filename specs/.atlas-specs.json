@@ -1,0 +1,1263 @@
+{
+ "excluded": {
+  "examples/basic": [
+   {
+    "candidate": "Temporary findings file is created and removed on exit",
+    "covered_by": "",
+    "reason": "INTERNAL_MECHANISM",
+    "source": "examples/basic/review.sh#review.sh"
+   },
+   {
+    "candidate": "Findings are passed from the scan to an inline Python formatter as JSON",
+    "covered_by": "",
+    "reason": "INTERNAL_MECHANISM",
+    "source": "examples/basic/review.sh#review.sh"
+   },
+   {
+    "candidate": "Non-numeric minimum confidence is rejected by the scan's argument parser",
+    "covered_by": "",
+    "reason": "TRIVIAL",
+    "source": "examples/basic/review.sh#review.sh"
+   },
+   {
+    "candidate": "Order of blocks follows the scan's sort (region, kind, id) rather than confidence",
+    "covered_by": "",
+    "reason": "INTERNAL_MECHANISM",
+    "source": "idle_hunter_lib/cli.py#main"
+   },
+   {
+    "candidate": "Generated script begins with a bash shebang",
+    "covered_by": "",
+    "reason": "TRIVIAL",
+    "source": "examples/basic/review.sh#review.sh"
+   }
+  ],
+  "idle-hunter-lib/cli": [
+   {
+    "candidate": "--workers sets how many regions are scanned in parallel",
+    "covered_by": "",
+    "reason": "INTERNAL_MECHANISM",
+    "source": "idle_hunter_lib/cli.py#_build_parser"
+   },
+   {
+    "candidate": "--live-pricing is forwarded to the scan",
+    "covered_by": "cost-estimation/live-pricing (pricing module)",
+    "reason": "INTERNAL_MECHANISM",
+    "source": "idle_hunter_lib/cli.py#main"
+   },
+   {
+    "candidate": "--min-confidence is forwarded to the renderers",
+    "covered_by": "reporting/confidence-filter (render module)",
+    "reason": "INTERNAL_MECHANISM",
+    "source": "idle_hunter_lib/cli.py#main"
+   },
+   {
+    "candidate": "Cleanup commands are printed and never run",
+    "covered_by": "reporting/cleanup-commands (render module); the CLI only passes the flag through",
+    "reason": "INTERNAL_MECHANISM",
+    "source": "idle_hunter_lib/cli.py#_build_parser"
+   },
+   {
+    "candidate": "--help works without boto3 installed (lazy import)",
+    "covered_by": "",
+    "reason": "TECH_BUILD",
+    "source": "idle_hunter_lib/cli.py#main"
+   },
+   {
+    "candidate": "Missing subcommand or non-integer --min-confidence/--workers is rejected by argparse with exit 2",
+    "covered_by": "",
+    "reason": "TRIVIAL",
+    "source": "idle_hunter_lib/cli.py#_build_parser"
+   },
+   {
+    "candidate": "Per-region failure line \"<region>: <error>\" logged during a sweep",
+    "covered_by": "scan-coverage/partial-failures (regions module); test_a_failed_region_is_logged_when_the_caller_passes_no_handler belongs there",
+    "reason": "INTERNAL_MECHANISM",
+    "source": "idle_hunter_lib/regions.py#scan_regions"
+   },
+   {
+    "candidate": "Log format \"LEVEL: message\" on stderr",
+    "covered_by": "command-line.exit-status.lost-region-exits-3",
+    "reason": "TRIVIAL",
+    "source": "idle_hunter_lib/cli.py#main"
+   }
+  ],
+  "idle-hunter-lib/idle-hunter-lib": [
+   {
+    "candidate": "Package docstring pointing to idle_hunter.py as the entrypoint",
+    "covered_by": "",
+    "reason": "TRIVIAL",
+    "source": "idle_hunter_lib/__init__.py"
+   }
+  ],
+  "idle-hunter-lib/metrics": [
+   {
+    "candidate": "Load balancer type is mapped to its CloudWatch namespace (application, network, gateway)",
+    "covered_by": "",
+    "reason": "INTERNAL_MECHANISM",
+    "source": "idle_hunter_lib/metrics.py#LB_NAMESPACES"
+   },
+   {
+    "candidate": "Metrics are requested with a one-day period and the Sum statistic",
+    "covered_by": "",
+    "reason": "INTERNAL_MECHANISM",
+    "source": "idle_hunter_lib/metrics.py#cw_sum"
+   },
+   {
+    "candidate": "The lookback window can be changed through a days parameter (no caller ever passes it)",
+    "covered_by": "",
+    "reason": "INTERNAL_MECHANISM",
+    "source": "idle_hunter_lib/metrics.py#cw_sum"
+   },
+   {
+    "candidate": "Metric dimensions are built from name/value pairs",
+    "covered_by": "",
+    "reason": "INTERNAL_MECHANISM",
+    "source": "idle_hunter_lib/metrics.py#cw_sum"
+   }
+  ],
+  "idle-hunter-lib/models": [
+   {
+    "candidate": "Finding is an immutable value record",
+    "covered_by": "",
+    "reason": "INTERNAL_MECHANISM",
+    "source": "idle_hunter_lib/models.py#Finding"
+   },
+   {
+    "candidate": "finding() factory takes keyword-only command and tags",
+    "covered_by": "",
+    "reason": "INTERNAL_MECHANISM",
+    "source": "idle_hunter_lib/models.py#finding"
+   },
+   {
+    "candidate": "IaC penalty applied for a zero score would raise it to 5",
+    "covered_by": "callers in idle_hunter_lib/scan.py skip zero scores before calling finding()",
+    "reason": "UNVERIFIABLE",
+    "source": "idle_hunter_lib/models.py#finding"
+   }
+  ],
+  "idle-hunter-lib/pricing": [
+   {
+    "candidate": "Resolved prices are reused per kind, region and shape for the rest of the run",
+    "covered_by": "",
+    "reason": "INTERNAL_MECHANISM",
+    "source": "idle_hunter_lib/pricing.py#price"
+   },
+   {
+    "candidate": "The Pricing API is always called in us-east-1",
+    "covered_by": "",
+    "reason": "INTERNAL_MECHANISM",
+    "source": "idle_hunter_lib/pricing.py#_lookup_price"
+   },
+   {
+    "candidate": "At most 20 price documents are read per lookup",
+    "covered_by": "",
+    "reason": "INTERNAL_MECHANISM",
+    "source": "idle_hunter_lib/pricing.py#_lookup_price"
+   },
+   {
+    "candidate": "Only named AWS and parse errors fall back; other errors propagate",
+    "covered_by": "",
+    "reason": "INTERNAL_MECHANISM",
+    "source": "idle_hunter_lib/pricing.py#price"
+   },
+   {
+    "candidate": "Engine tokens are matched case-insensitively",
+    "covered_by": "",
+    "reason": "TRIVIAL",
+    "source": "idle_hunter_lib/pricing.py#rds_engine_name"
+   },
+   {
+    "candidate": "Db2 engines map to 'Db2' by prefix",
+    "covered_by": "cost.database.instance-shape-priced",
+    "reason": "TRIVIAL",
+    "source": "idle_hunter_lib/pricing.py#RDS_ENGINE_PREFIXES"
+   },
+   {
+    "candidate": "A Pricing API result with no positive price falls back to the built-in rate",
+    "covered_by": "cost.live.lookup-failure-falls-back",
+    "reason": "DUPLICATE_OF",
+    "source": "idle_hunter_lib/pricing.py#_lookup_price"
+   },
+   {
+    "candidate": "A detached network interface is reported at $0",
+    "covered_by": "cost.built-in.default-monthly-prices",
+    "reason": "DUPLICATE_OF",
+    "source": "idle_hunter_lib/pricing.py#PRICE_DEFAULTS"
+   }
+  ],
+  "idle-hunter-lib/regions": [
+   {
+    "candidate": "Regions are scanned in parallel with a pool capped by --workers and by the number of regions",
+    "covered_by": "",
+    "reason": "INTERNAL_MECHANISM",
+    "source": "idle_hunter_lib/regions.py#scan_regions"
+   },
+   {
+    "candidate": "A --workers value of 0 or below is raised to 1 instead of failing",
+    "covered_by": "",
+    "reason": "TRIVIAL",
+    "source": "idle_hunter_lib/regions.py#scan_regions"
+   },
+   {
+    "candidate": "Each parallel worker builds its own AWS session; a single-region scan reuses the caller's session",
+    "covered_by": "",
+    "reason": "INTERNAL_MECHANISM",
+    "source": "idle_hunter_lib/regions.py#scan_regions"
+   },
+   {
+    "candidate": "Live pricing choice and region are passed through to each check's price lookup",
+    "covered_by": "",
+    "reason": "INTERNAL_MECHANISM",
+    "source": "idle_hunter_lib/regions.py#scan_region"
+   },
+   {
+    "candidate": "An interrupt in a worker is treated like any other region failure (BaseException)",
+    "covered_by": "",
+    "reason": "INTERNAL_MECHANISM",
+    "source": "idle_hunter_lib/regions.py#scan_regions"
+   },
+   {
+    "candidate": "Exit code 3 and the summary warning when regions are missing",
+    "covered_by": "enforced in the cli module, not here; belongs to command-line/exit-status",
+    "reason": "UNVERIFIABLE",
+    "source": "idle_hunter_lib/cli.py#main"
+   }
+  ],
+  "idle-hunter-lib/render": [
+   {
+    "candidate": "JSON findings follow the scan's region/kind/id order rather than confidence order",
+    "covered_by": "",
+    "reason": "INTERNAL_MECHANISM",
+    "source": "idle_hunter_lib/cli.py#main"
+   },
+   {
+    "candidate": "Non-JSON-serialisable values are written as strings (default=str)",
+    "covered_by": "",
+    "reason": "INTERNAL_MECHANISM",
+    "source": "idle_hunter_lib/render.py#render_json"
+   },
+   {
+    "candidate": "JSON is pretty-printed with two-space indentation",
+    "covered_by": "",
+    "reason": "TRIVIAL",
+    "source": "idle_hunter_lib/render.py#render_json"
+   },
+   {
+    "candidate": "Confidence is right-aligned to three characters in the text report",
+    "covered_by": "",
+    "reason": "TRIVIAL",
+    "source": "idle_hunter_lib/render.py#render"
+   }
+  ],
+  "idle-hunter-lib/scan": [
+   {
+    "candidate": "Paging through describe_* results via paginators",
+    "covered_by": "",
+    "reason": "INTERNAL_MECHANISM",
+    "source": "idle_hunter_lib/scan.py#_pages"
+   },
+   {
+    "candidate": "Load balancer tags fetched only for findings, so IaC tags lower the score",
+    "covered_by": "",
+    "reason": "INTERNAL_MECHANISM",
+    "source": "idle_hunter_lib/scan.py#scan_load_balancers"
+   },
+   {
+    "candidate": "Confidence values per kind (95, 90, 85, 80, age bonuses)",
+    "covered_by": "belongs to the scoring module (confidence-scoring/scoring-rules), not enforced in scan.py",
+    "reason": "UNVERIFIABLE",
+    "source": "idle_hunter_lib/score.py"
+   },
+   {
+    "candidate": "IaC-managed penalty and note suffix",
+    "covered_by": "enforced in models.finding (confidence-scoring/iac-ownership), not in this module",
+    "reason": "UNVERIFIABLE",
+    "source": "idle_hunter_lib/models.py#finding"
+   },
+   {
+    "candidate": "Load-balancer traffic metric namespace per LB type and dimension derived from ARN",
+    "covered_by": "",
+    "reason": "INTERNAL_MECHANISM",
+    "source": "idle_hunter_lib/scan.py#scan_load_balancers"
+   },
+   {
+    "candidate": "RDS pricing shape filters (engine, deployment, licence)",
+    "covered_by": "",
+    "reason": "INTERNAL_MECHANISM",
+    "source": "idle_hunter_lib/pricing.py#rds_shape"
+   },
+   {
+    "candidate": "Volume ids and AMI snapshot ids passed between checks so call order matters",
+    "covered_by": "zombie-detection.storage.orphaned-snapshot-only-when-source-gone-and-not-backing-ami",
+    "reason": "INTERNAL_MECHANISM",
+    "source": "idle_hunter_lib/scan.py#scan_volumes"
+   },
+   {
+    "candidate": "EIP id falls back to public IP when no allocation id",
+    "covered_by": "",
+    "reason": "TRIVIAL",
+    "source": "idle_hunter_lib/scan.py#scan_eips"
+   },
+   {
+    "candidate": "ENI description defaults to 'no description'",
+    "covered_by": "",
+    "reason": "TRIVIAL",
+    "source": "idle_hunter_lib/scan.py#scan_enis"
+   }
+  ],
+  "idle-hunter-lib/score": [
+   {
+    "candidate": "age_days accepts both datetime and ISO string (with Z suffix) creation times",
+    "covered_by": "",
+    "reason": "INTERNAL_MECHANISM",
+    "source": "idle_hunter_lib/score.py#age_days"
+   },
+   {
+    "candidate": "Noise-floor and staleness constants (NAT_IDLE_BYTES, RDS_IDLE_CONNECTIONS, LB_STALE_DAYS) as named values",
+    "covered_by": "scoring.nat.idle-only-on-proven-low-traffic",
+    "reason": "INTERNAL_MECHANISM",
+    "source": "idle_hunter_lib/score.py#NAT_IDLE_BYTES"
+   },
+   {
+    "candidate": "Every score caps below 100",
+    "covered_by": "scoring.ebs.unattached-volume-score-grows-with-age-and-namelessness",
+    "reason": "DUPLICATE_OF",
+    "source": "idle_hunter_lib/score.py"
+   },
+   {
+    "candidate": "ENI that is not in 'available' status scores 0",
+    "covered_by": "scoring.eni.service-owned-interface-never-reported",
+    "reason": "DUPLICATE_OF",
+    "source": "idle_hunter_lib/score.py#score_unattached_eni"
+   }
+  ],
+  "idle-hunter-lib/types": [
+   {
+    "candidate": "Client and Session aliases stand for a boto3 client/session or a test fake",
+    "covered_by": "",
+    "reason": "TECH_DEVTOOLING",
+    "source": "idle_hunter_lib/types.py#Client"
+   },
+   {
+    "candidate": "Json and Resource aliases describe AWS response documents and resources as plain dicts",
+    "covered_by": "",
+    "reason": "INTERNAL_MECHANISM",
+    "source": "idle_hunter_lib/types.py#Resource"
+   },
+   {
+    "candidate": "Tags alias describes a resource tag list of Key/Value pairs",
+    "covered_by": "",
+    "reason": "INTERNAL_MECHANISM",
+    "source": "idle_hunter_lib/types.py#Tags"
+   },
+   {
+    "candidate": "PriceOf alias: a per-region price lookup handed to scanners so they don't know whether the price is live or built-in",
+    "covered_by": "",
+    "reason": "INTERNAL_MECHANISM",
+    "source": "idle_hunter_lib/types.py#PriceOf"
+   },
+   {
+    "candidate": "Module docstring says Finding field order is the JSON output order (Finding is not defined in this file)",
+    "covered_by": "",
+    "reason": "UNVERIFIABLE",
+    "source": "idle_hunter_lib/types.py"
+   }
+  ],
+  "idle-hunter/idle-hunter": [
+   {
+    "candidate": "idle_hunter.py contains no tool logic and only re-exports main from idle_hunter_lib.cli",
+    "covered_by": "",
+    "reason": "INTERNAL_MECHANISM",
+    "source": "idle_hunter.py"
+   },
+   {
+    "candidate": "pyproject declares idle_hunter as a py-module and pytest pythonpath so the suite can import it from a bare checkout",
+    "covered_by": "",
+    "reason": "TECH_BUILD",
+    "source": "pyproject.toml#tool.setuptools"
+   },
+   {
+    "candidate": "Scoring, pricing, rendering and JSON-contract behaviours asserted in tests/test_idle_hunter.py",
+    "covered_by": "Enforced in idle_hunter_lib modules (score, pricing, render, models), not in this module's source; specify them there",
+    "reason": "UNVERIFIABLE",
+    "source": "tests/test_idle_hunter.py"
+   }
+  ],
+  "idle-hunter/makefile": [
+   {
+    "candidate": "`make` with no target prints the list of targets and their descriptions (help is the default goal)",
+    "covered_by": "",
+    "reason": "TECH_BUILD",
+    "source": "Makefile#help"
+   },
+   {
+    "candidate": "`make install` installs the package with pip",
+    "covered_by": "",
+    "reason": "TECH_BUILD",
+    "source": "Makefile#install"
+   },
+   {
+    "candidate": "`make dev` does an editable install plus pytest and ruff",
+    "covered_by": "",
+    "reason": "TECH_BUILD",
+    "source": "Makefile#dev"
+   },
+   {
+    "candidate": "`make build` builds the sdist and wheel",
+    "covered_by": "",
+    "reason": "TECH_BUILD",
+    "source": "Makefile#build"
+   },
+   {
+    "candidate": "`make lint` runs every pre-commit hook on every file (CLAUDE.md says it runs ruff; the Makefile runs the whole pre-commit gate)",
+    "covered_by": "",
+    "reason": "TECH_BUILD",
+    "source": "Makefile#lint"
+   },
+   {
+    "candidate": "`make format` rewrites sources with ruff format",
+    "covered_by": "",
+    "reason": "TECH_BUILD",
+    "source": "Makefile#format"
+   },
+   {
+    "candidate": "`make analyze` type-checks with basedpyright",
+    "covered_by": "",
+    "reason": "TECH_BUILD",
+    "source": "Makefile#analyze"
+   },
+   {
+    "candidate": "`make test` runs pytest quietly",
+    "covered_by": "",
+    "reason": "TECH_BUILD",
+    "source": "Makefile#test"
+   },
+   {
+    "candidate": "`make setup` only installs the pre-commit hook",
+    "covered_by": "",
+    "reason": "TECH_BUILD",
+    "source": "Makefile#setup"
+   },
+   {
+    "candidate": "`make run` only prints `idle-hunter --help` and never starts a scan",
+    "covered_by": "",
+    "reason": "TECH_BUILD",
+    "source": "Makefile#run"
+   }
+  ]
+ },
+ "lifted": {
+  "examples/basic": [],
+  "idle-hunter-lib/cli": [],
+  "idle-hunter-lib/idle-hunter-lib": [],
+  "idle-hunter-lib/metrics": [],
+  "idle-hunter-lib/models": [],
+  "idle-hunter-lib/pricing": [],
+  "idle-hunter-lib/regions": [],
+  "idle-hunter-lib/render": [],
+  "idle-hunter-lib/scan": [],
+  "idle-hunter-lib/score": [],
+  "idle-hunter-lib/types": [],
+  "idle-hunter/idle-hunter": [],
+  "idle-hunter/makefile": []
+ },
+ "retired": [
+  "scan-coverage.single-region.003",
+  "scan-coverage.single-region.002",
+  "reporting.findings.001",
+  "reporting.cleanup-commands.001",
+  "zombie-detection.load-balancers.002",
+  "zombie-detection.usage-metrics.001",
+  "zombie-detection.usage-metrics.002",
+  "zombie-detection.databases.002",
+  "confidence-scoring.scoring-rules.002",
+  "reporting.json-output.003",
+  "reporting.text-report.004"
+ ],
+ "scenarios": {
+  "command-line.exit-status.001": {
+   "file": "specs/command-line/exit-status/scan-exit-status.feature",
+   "fingerprint": "65f5e95613b5",
+   "human": false,
+   "rule": "command-line.exit-status.lost-region-exits-3",
+   "source": "idle_hunter_lib/cli.py#main",
+   "status": "verified",
+   "test": "tests/test_cli.py#test_main_warns_about_the_regions_it_lost_and_exits_nonzero",
+   "tests": [
+    "tests/test_cli.py#test_main_warns_about_the_regions_it_lost_and_exits_nonzero"
+   ]
+  },
+  "command-line.exit-status.002": {
+   "file": "specs/command-line/exit-status/scan-exit-status.feature",
+   "fingerprint": "65f5e95613b5",
+   "human": false,
+   "rule": "command-line.exit-status.complete-scan-exits-0",
+   "source": "idle_hunter_lib/cli.py#main",
+   "status": "verified",
+   "test": "tests/test_cli.py#test_main_exits_zero_when_no_region_failed",
+   "tests": [
+    "tests/test_cli.py#test_main_exits_zero_when_no_region_failed"
+   ]
+  },
+  "command-line.exit-status.003": {
+   "file": "specs/command-line/exit-status/scan-exit-status.feature",
+   "fingerprint": "7e3f1ebc848f",
+   "human": false,
+   "rule": "command-line.exit-status.single-region-failure-aborts",
+   "source": "idle_hunter_lib/regions.py#scan_regions",
+   "status": "inferred",
+   "test": "",
+   "tests": []
+  },
+  "command-line.launcher.001": {
+   "file": "specs/command-line/launcher/launching-idle-hunter.feature",
+   "fingerprint": "ce18a9b20061",
+   "human": false,
+   "rule": "command-line.launcher.same-scan-and-exit-status-from-any-launcher",
+   "source": "idle_hunter.py#main",
+   "status": "inferred",
+   "test": "",
+   "tests": []
+  },
+  "command-line.scan-command.001": {
+   "file": "specs/command-line/scan-command/scan-command.feature",
+   "fingerprint": "65f5e95613b5",
+   "human": false,
+   "rule": "command-line.scan.region-defaults-to-us-east-1",
+   "source": "idle_hunter_lib/cli.py#main",
+   "status": "gap",
+   "test": "",
+   "tests": []
+  },
+  "command-line.scan-command.002": {
+   "file": "specs/command-line/scan-command/scan-command.feature",
+   "fingerprint": "65f5e95613b5",
+   "human": false,
+   "rule": "command-line.scan.all-regions-covers-enabled-regions",
+   "source": "idle_hunter_lib/cli.py#main",
+   "status": "gap",
+   "test": "",
+   "tests": []
+  },
+  "command-line.scan-command.003": {
+   "file": "specs/command-line/scan-command/scan-command.feature",
+   "fingerprint": "65f5e95613b5",
+   "human": false,
+   "rule": "command-line.scan.output-modes",
+   "source": "idle_hunter_lib/cli.py#main",
+   "status": "gap",
+   "test": "",
+   "tests": []
+  },
+  "command-line.scan-command.004": {
+   "file": "specs/command-line/scan-command/scan-command.feature",
+   "fingerprint": "65f5e95613b5",
+   "human": false,
+   "rule": "command-line.scan.stable-finding-order",
+   "source": "idle_hunter_lib/cli.py#main",
+   "status": "gap",
+   "test": "",
+   "tests": []
+  },
+  "confidence-scoring.iac-ownership.001": {
+   "file": "specs/confidence-scoring/iac-ownership/iac-owned-resources.feature",
+   "fingerprint": "381542a7f3b8",
+   "human": false,
+   "rule": "confidence-scoring.iac-ownership.penalty-with-floor",
+   "source": "idle_hunter_lib/models.py#finding",
+   "status": "verified",
+   "test": "tests/test_idle_hunter.py#test_iac_managed_tags_lower_the_score",
+   "tests": [
+    "tests/test_idle_hunter.py#test_iac_managed_tags_lower_the_score",
+    "tests/test_scan_wiring.py#test_scan_region_finds_one_of_each_kind"
+   ]
+  },
+  "confidence-scoring.iac-ownership.002": {
+   "file": "specs/confidence-scoring/iac-ownership/iac-owned-resources.feature",
+   "fingerprint": "2af2698fd750",
+   "human": false,
+   "rule": "confidence-scoring.iac-ownership.recognised-ownership-tags",
+   "source": "idle_hunter_lib/models.py#iac_managed",
+   "status": "verified",
+   "test": "tests/test_idle_hunter.py#test_iac_managed_tags_lower_the_score",
+   "tests": [
+    "tests/test_idle_hunter.py#test_iac_managed_tags_lower_the_score"
+   ]
+  },
+  "confidence-scoring.iac-ownership.003": {
+   "file": "specs/confidence-scoring/iac-ownership/iac-owned-resources.feature",
+   "fingerprint": "381542a7f3b8",
+   "human": false,
+   "rule": "confidence-scoring.iac-ownership.untagged-unchanged",
+   "source": "idle_hunter_lib/models.py#finding",
+   "status": "verified",
+   "test": "tests/test_idle_hunter.py#test_iac_managed_tags_lower_the_score",
+   "tests": [
+    "tests/test_idle_hunter.py#test_iac_managed_tags_lower_the_score"
+   ]
+  },
+  "confidence-scoring.scoring-rules.001": {
+   "file": "specs/confidence-scoring/scoring-rules/zombie-confidence-scores.feature",
+   "fingerprint": "73c4bd957b7f",
+   "human": false,
+   "rule": "scoring.ebs.unattached-volume-score-grows-with-age-and-namelessness",
+   "source": "idle_hunter_lib/score.py#score_unattached_volume",
+   "status": "verified",
+   "test": "tests/test_idle_hunter.py#test_volume_score_grows_with_age_and_caps",
+   "tests": [
+    "tests/test_idle_hunter.py#test_volume_score_grows_with_age_and_caps"
+   ]
+  },
+  "confidence-scoring.scoring-rules.003": {
+   "file": "specs/confidence-scoring/scoring-rules/zombie-confidence-scores.feature",
+   "fingerprint": "d1b45a56d487",
+   "human": false,
+   "rule": "scoring.eni.service-owned-interface-never-reported",
+   "source": "idle_hunter_lib/score.py#score_unattached_eni",
+   "status": "verified",
+   "test": "tests/test_idle_hunter.py#test_eni_score_zero_when_a_service_owns_it",
+   "tests": [
+    "tests/test_idle_hunter.py#test_eni_score_zero_when_a_service_owns_it"
+   ]
+  },
+  "confidence-scoring.scoring-rules.004": {
+   "file": "specs/confidence-scoring/scoring-rules/zombie-confidence-scores.feature",
+   "fingerprint": "a2888ec4eb99",
+   "human": false,
+   "rule": "scoring.rds.idle-only-on-proven-low-connections",
+   "source": "idle_hunter_lib/score.py#score_idle_rds",
+   "status": "verified",
+   "test": "tests/test_idle_hunter.py#test_rds_score_treats_missing_metrics_as_unknown",
+   "tests": [
+    "tests/test_idle_hunter.py#test_rds_score_treats_missing_metrics_as_unknown"
+   ]
+  },
+  "confidence-scoring.scoring-rules.005": {
+   "file": "specs/confidence-scoring/scoring-rules/zombie-confidence-scores.feature",
+   "fingerprint": "38eebdf0945b",
+   "human": false,
+   "rule": "scoring.elb.empty-lb-score-by-age-and-traffic",
+   "source": "idle_hunter_lib/score.py#score_empty_lb",
+   "status": "verified",
+   "test": "tests/test_idle_hunter.py#test_lb_score_zero_when_targets_exist",
+   "tests": [
+    "tests/test_idle_hunter.py#test_lb_score_zero_when_targets_exist",
+    "tests/test_idle_hunter.py#test_lb_score_boosted_by_zero_traffic"
+   ]
+  },
+  "confidence-scoring.scoring-rules.006": {
+   "file": "specs/confidence-scoring/scoring-rules/zombie-confidence-scores.feature",
+   "fingerprint": "92ad2b73705f",
+   "human": false,
+   "rule": "scoring.nat.idle-only-on-proven-low-traffic",
+   "source": "idle_hunter_lib/score.py#score_idle_nat",
+   "status": "verified",
+   "test": "tests/test_idle_hunter.py#test_nat_score_needs_a_metric",
+   "tests": [
+    "tests/test_idle_hunter.py#test_nat_score_needs_a_metric"
+   ]
+  },
+  "confidence-scoring.scoring-rules.007": {
+   "file": "specs/confidence-scoring/scoring-rules/zombie-confidence-scores.feature",
+   "fingerprint": "ff98c47ec808",
+   "human": false,
+   "rule": "scoring.snapshot.orphaned-snapshot-score-grows-with-age",
+   "source": "idle_hunter_lib/score.py#score_stale_snapshot",
+   "status": "verified",
+   "test": "tests/test_idle_hunter.py#test_snapshot_and_ami_scores",
+   "tests": [
+    "tests/test_idle_hunter.py#test_snapshot_and_ami_scores"
+   ]
+  },
+  "confidence-scoring.scoring-rules.008": {
+   "file": "specs/confidence-scoring/scoring-rules/zombie-confidence-scores.feature",
+   "fingerprint": "31b217b345a4",
+   "human": false,
+   "rule": "scoring.ami.unused-image-score-grows-with-age",
+   "source": "idle_hunter_lib/score.py#score_unused_ami",
+   "status": "verified",
+   "test": "tests/test_idle_hunter.py#test_snapshot_and_ami_scores",
+   "tests": [
+    "tests/test_idle_hunter.py#test_snapshot_and_ami_scores"
+   ]
+  },
+  "cost-estimation.built-in-prices.001": {
+   "file": "specs/cost-estimation/built-in-prices/built-in-prices.feature",
+   "fingerprint": "85c1b27f4a20",
+   "human": false,
+   "rule": "cost.built-in.default-monthly-prices",
+   "source": "idle_hunter_lib/pricing.py#PRICE_DEFAULTS",
+   "status": "verified",
+   "test": "tests/test_idle_hunter.py#test_price_falls_back_to_estimates_without_live_lookup",
+   "tests": [
+    "tests/test_idle_hunter.py#test_price_falls_back_to_estimates_without_live_lookup",
+    "tests/test_idle_hunter.py#test_rds_price_is_not_live_without_the_flag"
+   ]
+  },
+  "cost-estimation.built-in-prices.002": {
+   "file": "specs/cost-estimation/built-in-prices/built-in-prices.feature",
+   "fingerprint": "173ec34174f0",
+   "human": false,
+   "rule": "cost.built-in.region-independent",
+   "source": "idle_hunter_lib/pricing.py#price",
+   "status": "verified",
+   "test": "tests/test_idle_hunter.py#test_price_falls_back_to_estimates_without_live_lookup",
+   "tests": [
+    "tests/test_idle_hunter.py#test_price_falls_back_to_estimates_without_live_lookup"
+   ]
+  },
+  "cost-estimation.built-in-prices.003": {
+   "file": "specs/cost-estimation/built-in-prices/built-in-prices.feature",
+   "fingerprint": "a59bbf994d4f",
+   "human": false,
+   "rule": "cost.built-in.rds-baseline-disclosed",
+   "source": "idle_hunter_lib/pricing.py#price_is_live",
+   "status": "verified",
+   "test": "tests/test_idle_hunter.py#test_rds_price_is_not_live_without_the_flag",
+   "tests": [
+    "tests/test_idle_hunter.py#test_rds_price_is_not_live_without_the_flag"
+   ]
+  },
+  "cost-estimation.database-pricing.001": {
+   "file": "specs/cost-estimation/database-pricing/database-pricing.feature",
+   "fingerprint": "0ef938534848",
+   "human": false,
+   "rule": "cost.database.instance-shape-priced",
+   "source": "idle_hunter_lib/pricing.py#rds_shape",
+   "status": "verified",
+   "test": "tests/test_idle_hunter.py#test_rds_shape_carries_class_engine_deployment_and_licence",
+   "tests": [
+    "tests/test_idle_hunter.py#test_rds_shape_carries_class_engine_deployment_and_licence",
+    "tests/test_idle_hunter.py#test_rds_engine_name_maps_families_and_refuses_to_guess",
+    "tests/test_idle_hunter.py#test_rds_live_pricing_queries_the_instance_shape_not_a_flat_rate"
+   ]
+  },
+  "cost-estimation.database-pricing.002": {
+   "file": "specs/cost-estimation/database-pricing/database-pricing.feature",
+   "fingerprint": "57ebc58fe1a0",
+   "human": false,
+   "rule": "cost.database.unknown-shape-not-guessed",
+   "source": "idle_hunter_lib/pricing.py#rds_engine_name",
+   "status": "verified",
+   "test": "tests/test_idle_hunter.py#test_rds_unnameable_engine_falls_back_without_querying",
+   "tests": [
+    "tests/test_idle_hunter.py#test_rds_unnameable_engine_falls_back_without_querying",
+    "tests/test_idle_hunter.py#test_rds_engine_name_maps_families_and_refuses_to_guess"
+   ]
+  },
+  "cost-estimation.database-pricing.003": {
+   "file": "specs/cost-estimation/database-pricing/database-pricing.feature",
+   "fingerprint": "a59bbf994d4f",
+   "human": false,
+   "rule": "cost.database.live-price-disclosed",
+   "source": "idle_hunter_lib/pricing.py#price_is_live",
+   "status": "verified",
+   "test": "tests/test_idle_hunter.py#test_rds_live_pricing_queries_the_instance_shape_not_a_flat_rate",
+   "tests": [
+    "tests/test_idle_hunter.py#test_rds_live_pricing_queries_the_instance_shape_not_a_flat_rate"
+   ]
+  },
+  "cost-estimation.live-pricing.001": {
+   "file": "specs/cost-estimation/live-pricing/live-pricing.feature",
+   "fingerprint": "173ec34174f0",
+   "human": false,
+   "rule": "cost.live.scan-region-monthly-rate",
+   "source": "idle_hunter_lib/pricing.py#price",
+   "status": "verified",
+   "test": "tests/test_idle_hunter.py#test_rds_live_pricing_queries_the_instance_shape_not_a_flat_rate",
+   "tests": [
+    "tests/test_idle_hunter.py#test_rds_live_pricing_queries_the_instance_shape_not_a_flat_rate"
+   ]
+  },
+  "cost-estimation.live-pricing.002": {
+   "file": "specs/cost-estimation/live-pricing/live-pricing.feature",
+   "fingerprint": "173ec34174f0",
+   "human": false,
+   "rule": "cost.live.lookup-failure-falls-back",
+   "source": "idle_hunter_lib/pricing.py#price",
+   "status": "verified",
+   "test": "tests/test_idle_hunter.py#test_price_falls_back_to_estimates_without_live_lookup",
+   "tests": [
+    "tests/test_idle_hunter.py#test_price_falls_back_to_estimates_without_live_lookup"
+   ]
+  },
+  "cost-estimation.live-pricing.003": {
+   "file": "specs/cost-estimation/live-pricing/live-pricing.feature",
+   "fingerprint": "09ce82a08e4e",
+   "human": false,
+   "rule": "cost.live.one-product-per-kind",
+   "source": "idle_hunter_lib/pricing.py#PRICE_QUERIES",
+   "status": "inferred",
+   "test": "",
+   "tests": []
+  },
+  "reporting.cleanup-commands.002": {
+   "file": "specs/reporting/cleanup-commands/cleanup-commands.feature",
+   "fingerprint": "191dbb68efde",
+   "human": false,
+   "rule": "reporting.cleanup-commands.no-line-without-command",
+   "source": "idle_hunter_lib/render.py#render",
+   "status": "inferred",
+   "test": "",
+   "tests": []
+  },
+  "reporting.cleanup-commands.003": {
+   "file": "specs/reporting/cleanup-commands/cleanup-commands-per-kind.feature",
+   "fingerprint": "668a60536166",
+   "human": false,
+   "rule": "reporting.cleanup-commands.command-per-kind",
+   "source": "idle_hunter_lib/scan.py#scan_rds",
+   "status": "inferred",
+   "test": "",
+   "tests": []
+  },
+  "reporting.cleanup-review-script.001": {
+   "file": "specs/reporting/cleanup-review-script/cleanup-review-script.feature",
+   "fingerprint": "cc40d4a3b3e2",
+   "human": false,
+   "rule": "reporting.cleanup-review-script.snapshot-before-volume-delete",
+   "source": "examples/basic/review.sh#review.sh",
+   "status": "inferred",
+   "test": "",
+   "tests": []
+  },
+  "reporting.cleanup-review-script.002": {
+   "file": "specs/reporting/cleanup-review-script/cleanup-review-script.feature",
+   "fingerprint": "cc40d4a3b3e2",
+   "human": false,
+   "rule": "reporting.cleanup-review-script.nothing-runs-until-reviewed",
+   "source": "examples/basic/review.sh#review.sh",
+   "status": "inferred",
+   "test": "",
+   "tests": []
+  },
+  "reporting.cleanup-review-script.003": {
+   "file": "specs/reporting/cleanup-review-script/cleanup-review-script.feature",
+   "fingerprint": "cc40d4a3b3e2",
+   "human": false,
+   "rule": "reporting.cleanup-review-script.annotated-finding-blocks",
+   "source": "examples/basic/review.sh#review.sh",
+   "status": "inferred",
+   "test": "",
+   "tests": []
+  },
+  "reporting.cleanup-review-script.004": {
+   "file": "specs/reporting/cleanup-review-script/cleanup-review-script.feature",
+   "fingerprint": "cc40d4a3b3e2",
+   "human": false,
+   "rule": "reporting.cleanup-review-script.summary-total",
+   "source": "examples/basic/review.sh#review.sh",
+   "status": "inferred",
+   "test": "",
+   "tests": []
+  },
+  "reporting.cleanup-review-script.005": {
+   "file": "specs/reporting/cleanup-review-script/cleanup-review-script.feature",
+   "fingerprint": "cc40d4a3b3e2",
+   "human": false,
+   "rule": "reporting.cleanup-review-script.confidence-threshold",
+   "source": "examples/basic/review.sh#review.sh",
+   "status": "verified",
+   "test": "tests/test_idle_hunter.py#test_json_output_is_versioned",
+   "tests": [
+    "tests/test_idle_hunter.py#test_json_output_is_versioned"
+   ]
+  },
+  "reporting.cleanup-review-script.006": {
+   "file": "specs/reporting/cleanup-review-script/cleanup-review-script.feature",
+   "fingerprint": "cc40d4a3b3e2",
+   "human": false,
+   "rule": "reporting.cleanup-review-script.region-required",
+   "source": "examples/basic/review.sh#review.sh",
+   "status": "inferred",
+   "test": "",
+   "tests": []
+  },
+  "reporting.cleanup-review-script.007": {
+   "file": "specs/reporting/cleanup-review-script/cleanup-review-script.feature",
+   "fingerprint": "cc40d4a3b3e2",
+   "human": false,
+   "rule": "reporting.cleanup-review-script.no-script-from-failed-scan",
+   "source": "examples/basic/review.sh#review.sh",
+   "status": "inferred",
+   "test": "",
+   "tests": []
+  },
+  "reporting.findings.002": {
+   "file": "specs/reporting/findings/finding-record.feature",
+   "fingerprint": "381542a7f3b8",
+   "human": false,
+   "rule": "reporting.findings.cost-rounded-to-cents",
+   "source": "idle_hunter_lib/models.py#finding",
+   "status": "inferred",
+   "test": "",
+   "tests": []
+  },
+  "reporting.json-output.001": {
+   "file": "specs/reporting/json-output/json-output.feature",
+   "fingerprint": "778eb6f857cd",
+   "human": false,
+   "rule": "reporting.json-output.versioned-envelope",
+   "source": "idle_hunter_lib/render.py#render_json",
+   "status": "verified",
+   "test": "tests/test_idle_hunter.py#test_json_output_is_versioned",
+   "tests": [
+    "tests/test_idle_hunter.py#test_json_output_is_versioned"
+   ]
+  },
+  "reporting.json-output.002": {
+   "file": "specs/reporting/json-output/json-output.feature",
+   "fingerprint": "778eb6f857cd",
+   "human": false,
+   "rule": "reporting.json-output.min-confidence-applies",
+   "source": "idle_hunter_lib/render.py#render_json",
+   "status": "verified",
+   "test": "tests/test_idle_hunter.py#test_json_output_is_versioned",
+   "tests": [
+    "tests/test_idle_hunter.py#test_json_output_is_versioned"
+   ]
+  },
+  "reporting.text-report.001": {
+   "file": "specs/reporting/text-report/text-report.feature",
+   "fingerprint": "191dbb68efde",
+   "human": false,
+   "rule": "reporting.text-report.summary-header",
+   "source": "idle_hunter_lib/render.py#render",
+   "status": "inferred",
+   "test": "",
+   "tests": []
+  },
+  "reporting.text-report.002": {
+   "file": "specs/reporting/text-report/text-report.feature",
+   "fingerprint": "191dbb68efde",
+   "human": false,
+   "rule": "reporting.text-report.most-confident-first",
+   "source": "idle_hunter_lib/render.py#render",
+   "status": "inferred",
+   "test": "",
+   "tests": []
+  },
+  "reporting.text-report.003": {
+   "file": "specs/reporting/text-report/text-report.feature",
+   "fingerprint": "191dbb68efde",
+   "human": false,
+   "rule": "reporting.text-report.min-confidence-filter",
+   "source": "idle_hunter_lib/render.py#render",
+   "status": "verified",
+   "test": "tests/test_idle_hunter.py#test_render_sorts_and_filters",
+   "tests": [
+    "tests/test_idle_hunter.py#test_render_sorts_and_filters"
+   ]
+  },
+  "scan-coverage.partial-failures.001": {
+   "file": "specs/scan-coverage/partial-failures/all-regions-sweep.feature",
+   "fingerprint": "7e3f1ebc848f",
+   "human": false,
+   "rule": "scan-coverage.partial-failures.failed-region-skipped-and-named",
+   "source": "idle_hunter_lib/regions.py#scan_regions",
+   "status": "verified",
+   "test": "tests/test_scan_wiring.py#test_scan_regions_runs_in_parallel_and_survives_one_bad_region",
+   "tests": [
+    "tests/test_scan_wiring.py#test_scan_regions_runs_in_parallel_and_survives_one_bad_region",
+    "tests/test_cli.py#test_a_failed_region_is_logged_when_the_caller_passes_no_handler"
+   ]
+  },
+  "scan-coverage.single-region.001": {
+   "file": "specs/scan-coverage/single-region/single-region-scan.feature",
+   "fingerprint": "2a8504c7eb15",
+   "human": false,
+   "rule": "scan-coverage.single-region.runs-every-check",
+   "source": "idle_hunter_lib/regions.py#scan_region",
+   "status": "verified",
+   "test": "tests/test_scan_wiring.py#test_scan_region_finds_one_of_each_kind",
+   "tests": [
+    "tests/test_scan_wiring.py#test_scan_region_finds_one_of_each_kind"
+   ]
+  },
+  "zombie-detection.databases.001": {
+   "file": "specs/zombie-detection/databases/idle-databases.feature",
+   "fingerprint": "668a60536166",
+   "human": false,
+   "rule": "zombie-detection.databases.idle-rds-requires-available-and-evidence",
+   "source": "idle_hunter_lib/scan.py#scan_rds",
+   "status": "verified",
+   "test": "tests/test_scan_wiring.py#test_scan_region_finds_one_of_each_kind",
+   "tests": [
+    "tests/test_scan_wiring.py#test_scan_region_finds_one_of_each_kind"
+   ]
+  },
+  "zombie-detection.load-balancers.001": {
+   "file": "specs/zombie-detection/load-balancers/empty-load-balancers.feature",
+   "fingerprint": "037220be1ac4",
+   "human": false,
+   "rule": "zombie-detection.load-balancers.no-registered-targets",
+   "source": "idle_hunter_lib/scan.py#scan_load_balancers",
+   "status": "verified",
+   "test": "tests/test_scan_wiring.py#test_scan_region_finds_one_of_each_kind",
+   "tests": [
+    "tests/test_scan_wiring.py#test_scan_region_finds_one_of_each_kind"
+   ]
+  },
+  "zombie-detection.networking.001": {
+   "file": "specs/zombie-detection/networking/network-leftovers.feature",
+   "fingerprint": "ce1a1ca0ff52",
+   "human": false,
+   "rule": "zombie-detection.networking.unassociated-eip-reported",
+   "source": "idle_hunter_lib/scan.py#scan_eips",
+   "status": "verified",
+   "test": "tests/test_scan_wiring.py#test_scan_region_finds_one_of_each_kind",
+   "tests": [
+    "tests/test_scan_wiring.py#test_scan_region_finds_one_of_each_kind"
+   ]
+  },
+  "zombie-detection.networking.002": {
+   "file": "specs/zombie-detection/networking/network-leftovers.feature",
+   "fingerprint": "77fecc46a279",
+   "human": false,
+   "rule": "zombie-detection.networking.detached-eni-reported-free-unless-service-owned",
+   "source": "idle_hunter_lib/scan.py#scan_enis",
+   "status": "verified",
+   "test": "tests/test_scan_wiring.py#test_scan_region_finds_one_of_each_kind",
+   "tests": [
+    "tests/test_scan_wiring.py#test_scan_region_finds_one_of_each_kind"
+   ]
+  },
+  "zombie-detection.networking.003": {
+   "file": "specs/zombie-detection/networking/network-leftovers.feature",
+   "fingerprint": "07efff9cda39",
+   "human": false,
+   "rule": "zombie-detection.networking.idle-nat-requires-traffic-evidence",
+   "source": "idle_hunter_lib/scan.py#scan_nat_gateways",
+   "status": "verified",
+   "test": "tests/test_scan_wiring.py#test_scan_region_finds_one_of_each_kind",
+   "tests": [
+    "tests/test_scan_wiring.py#test_scan_region_finds_one_of_each_kind"
+   ]
+  },
+  "zombie-detection.storage.001": {
+   "file": "specs/zombie-detection/storage/storage-leftovers.feature",
+   "fingerprint": "70e83b7c1a04",
+   "human": false,
+   "rule": "zombie-detection.storage.unattached-volume-reported",
+   "source": "idle_hunter_lib/scan.py#scan_volumes",
+   "status": "verified",
+   "test": "tests/test_scan_wiring.py#test_scan_region_finds_one_of_each_kind",
+   "tests": [
+    "tests/test_scan_wiring.py#test_scan_region_finds_one_of_each_kind"
+   ]
+  },
+  "zombie-detection.storage.002": {
+   "file": "specs/zombie-detection/storage/storage-leftovers.feature",
+   "fingerprint": "0edc73f469bd",
+   "human": false,
+   "rule": "zombie-detection.storage.orphaned-snapshot-only-when-source-gone-and-not-backing-ami",
+   "source": "idle_hunter_lib/scan.py#scan_snapshots",
+   "status": "verified",
+   "test": "tests/test_scan_wiring.py#test_only_genuinely_orphaned_snapshots_are_reported",
+   "tests": [
+    "tests/test_scan_wiring.py#test_only_genuinely_orphaned_snapshots_are_reported"
+   ]
+  },
+  "zombie-detection.storage.003": {
+   "file": "specs/zombie-detection/storage/storage-leftovers.feature",
+   "fingerprint": "a252e26205e6",
+   "human": false,
+   "rule": "zombie-detection.storage.unused-ami-reported",
+   "source": "idle_hunter_lib/scan.py#scan_images",
+   "status": "verified",
+   "test": "tests/test_scan_wiring.py#test_scan_region_finds_one_of_each_kind",
+   "tests": [
+    "tests/test_scan_wiring.py#test_scan_region_finds_one_of_each_kind"
+   ]
+  }
+ },
+ "taxonomy": {
+  "domains": [
+   {
+    "areas": [
+     {
+      "description": "Unattached EBS volumes, orphaned snapshots and unused AMIs, including which snapshots back an image.",
+      "slug": "storage",
+      "title": "Storage leftovers"
+     },
+     {
+      "description": "Unassociated Elastic IPs, detached network interfaces and idle NAT gateways.",
+      "slug": "networking",
+      "title": "Network leftovers"
+     },
+     {
+      "description": "Load balancers with no registered targets or no traffic.",
+      "slug": "load-balancers",
+      "title": "Empty load balancers"
+     },
+     {
+      "description": "RDS instances with no connections over the lookback window.",
+      "slug": "databases",
+      "title": "Idle databases"
+     },
+     {
+      "description": "CloudWatch activity totals (connections, bytes) used to prove a resource is idle.",
+      "slug": "usage-metrics",
+      "title": "Usage metrics"
+     },
+     {
+      "description": "Paging through AWS inventory so every resource of a kind is seen.",
+      "slug": "resource-listing",
+      "title": "Resource listing"
+     }
+    ],
+    "description": "Finding AWS resources that cost money but are no longer used.",
+    "slug": "zombie-detection",
+    "title": "Zombie detection"
+   },
+   {
+    "areas": [
+     {
+      "description": "How each kind of zombie is scored from its state, activity and dependencies.",
+      "slug": "scoring-rules",
+      "title": "Scoring rules"
+     },
+     {
+      "description": "Working out how old a resource is so older leftovers score higher.",
+      "slug": "resource-age",
+      "title": "Resource age"
+     },
+     {
+      "description": "Spotting resources owned by Terraform, CloudFormation, CDK and similar tools from their tags, and lowering their score.",
+      "slug": "iac-ownership",
+      "title": "Infrastructure-as-code ownership"
+     }
+    ],
+    "description": "The 0\u2013100 confidence-to-delete score attached to every finding.",
+    "slug": "confidence-scoring",
+    "title": "Confidence scoring"
+   },
+   {
+    "areas": [
+     {
+      "description": "The default price table used when no live lookup is requested.",
+      "slug": "built-in-prices",
+      "title": "Built-in prices"
+     },
+     {
+      "description": "Looking up real prices through the AWS Pricing API, cached, with a fallback when the lookup fails.",
+      "slug": "live-pricing",
+      "title": "Live pricing"
+     },
+     {
+      "description": "Matching an RDS instance's engine and shape to the right price.",
+      "slug": "database-pricing",
+      "title": "Database pricing"
+     }
+    ],
+    "description": "Estimating the monthly spend you would get back by removing each finding.",
+    "slug": "cost-estimation",
+    "title": "Cost estimation"
+   },
+   {
+    "areas": [
+     {
+      "description": "Running every check against one chosen region.",
+      "slug": "single-region",
+      "title": "Single-region scan"
+     },
+     {
+      "description": "Finding every enabled region and scanning them in parallel with a set number of workers.",
+      "slug": "all-regions",
+      "title": "All-regions sweep"
+     },
+     {
+      "description": "Skipping a region that fails, reporting it, and never presenting a partial result as a clean estate.",
+      "slug": "partial-failures",
+      "title": "Partial failures"
+     }
+    ],
+    "description": "Which AWS regions a scan covers and how it copes when some fail.",
+    "slug": "scan-coverage",
+    "title": "Scan coverage"
+   },
+   {
+    "areas": [
+     {
+      "description": "The record each finding carries: kind, id, region, score, monthly cost, note and a suggested command.",
+      "slug": "findings",
+      "title": "Findings"
+     },
+     {
+      "description": "A readable report of findings, sorted the same way every run so two scans diff cleanly.",
+      "slug": "text-report",
+      "title": "Text report"
+     },
+     {
+      "description": "Machine-readable findings for scripts and pipelines.",
+      "slug": "json-output",
+      "title": "JSON output"
+     },
+     {
+      "description": "Hiding findings below a minimum confidence score.",
+      "slug": "confidence-filter",
+      "title": "Confidence filter"
+     },
+     {
+      "description": "Printing deletion commands for people to review; the tool never runs them.",
+      "slug": "cleanup-commands",
+      "title": "Cleanup commands"
+     },
+     {
+      "description": "An example that turns a scan into a cleanup script for people to edit, with a snapshot taken before each volume delete.",
+      "slug": "cleanup-review-script",
+      "title": "Cleanup review script"
+     }
+    ],
+    "description": "Showing findings to people and to other tools.",
+    "slug": "reporting",
+    "title": "Reporting"
+   },
+   {
+    "areas": [
+     {
+      "description": "The scan command and its options for region, pricing, workers, filtering and output format.",
+      "slug": "scan-command",
+      "title": "Scan command"
+     },
+     {
+      "description": "Exit codes that flag missing regions, with diagnostics on stderr and results on stdout.",
+      "slug": "exit-status",
+      "title": "Exit status and diagnostics"
+     },
+     {
+      "description": "Running the tool from the standalone script or the package entry point.",
+      "slug": "launcher",
+      "title": "Launcher"
+     }
+    ],
+    "description": "How users run idle-hunter from a terminal.",
+    "slug": "command-line",
+    "title": "Command line"
+   },
+   {
+    "areas": [
+     {
+      "description": "Installing the package, editable dev installs, and building sdist and wheel.",
+      "slug": "build-install",
+      "title": "Build and install"
+     },
+     {
+      "description": "Lint, format, type-check, tests and pre-commit hook setup.",
+      "slug": "quality-gates",
+      "title": "Quality gates"
+     },
+     {
+      "description": "Common type names for AWS clients, sessions, resources and tags used across the tool.",
+      "slug": "shared-types",
+      "title": "Shared types"
+     }
+    ],
+    "description": "Building, checking and running the project during development.",
+    "slug": "developer-tooling",
+    "title": "Developer tooling"
+   }
+  ]
+ }
+}

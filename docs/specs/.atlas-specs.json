@@ -1,0 +1,263 @@
+{
+ "excluded": {
+  "stylesheets/extra": [
+   {
+    "candidate": "Home hero banner with gradient title, tagline and spaced call-to-action buttons",
+    "covered_by": "",
+    "reason": "UNVERIFIABLE",
+    "source": "docs/stylesheets/extra.css#.md-typeset .hero"
+   },
+   {
+    "candidate": "Feature cards with rounded borders, hover lift and accent-coloured icons",
+    "covered_by": "",
+    "reason": "UNVERIFIABLE",
+    "source": "docs/stylesheets/extra.css#.md-typeset .grid.cards > ul > li"
+   },
+   {
+    "candidate": "Primary buttons with gradient fill, pill shape and hover lift",
+    "covered_by": "",
+    "reason": "UNVERIFIABLE",
+    "source": "docs/stylesheets/extra.css#.md-typeset .md-button"
+   },
+   {
+    "candidate": "Header translucency, blur, hairline divider and shadow on scroll",
+    "covered_by": "",
+    "reason": "TRIVIAL",
+    "source": "docs/stylesheets/extra.css#.md-header"
+   },
+   {
+    "candidate": "Tab links dimmed to 72% opacity except active/hover",
+    "covered_by": "",
+    "reason": "TRIVIAL",
+    "source": "docs/stylesheets/extra.css#.md-tabs__link"
+   },
+   {
+    "candidate": "Heading weights, letter-spacing and h2 top margin",
+    "covered_by": "",
+    "reason": "TRIVIAL",
+    "source": "docs/stylesheets/extra.css#.md-typeset h1"
+   },
+   {
+    "candidate": "Rounded bordered code blocks",
+    "covered_by": "",
+    "reason": "TRIVIAL",
+    "source": "docs/stylesheets/extra.css#.md-typeset .highlight"
+   },
+   {
+    "candidate": "Tables styled as cards with uppercase headers (comment claims they scroll on narrow screens, but overflow is set to hidden on the table)",
+    "covered_by": "",
+    "reason": "TRIVIAL",
+    "source": "docs/stylesheets/extra.css#.md-typeset table:not([class])"
+   },
+   {
+    "candidate": "Sidebar title and active link weights",
+    "covered_by": "",
+    "reason": "TRIVIAL",
+    "source": "docs/stylesheets/extra.css#.md-nav__title"
+   },
+   {
+    "candidate": "Footer background, divider and muted link colour",
+    "covered_by": "",
+    "reason": "TRIVIAL",
+    "source": "docs/stylesheets/extra.css#.md-footer-meta"
+   },
+   {
+    "candidate": "Smooth scrolling for in-page anchors",
+    "covered_by": "",
+    "reason": "TRIVIAL",
+    "source": "docs/stylesheets/extra.css#html"
+   },
+   {
+    "candidate": "Kerning and ligature font features",
+    "covered_by": "",
+    "reason": "TRIVIAL",
+    "source": "docs/stylesheets/extra.css#.md-typeset"
+   }
+  ]
+ },
+ "lifted": {
+  "stylesheets/extra": [
+   {
+    "from_source": "mkdocs.yml#theme.font",
+    "rule": "docs.offline.no-network-assets"
+   }
+  ]
+ },
+ "retired": [],
+ "scenarios": {
+  "docs.documentation-site.brand-palette.001": {
+   "file": "docs/specs/documentation-site/brand-palette/docs-look-and-feel.feature",
+   "fingerprint": "d1e8fee7d3b2",
+   "human": false,
+   "rule": "docs.brand.single-accent-palette",
+   "source": "docs/stylesheets/extra.css#:root",
+   "status": "inferred",
+   "test": "",
+   "tests": []
+  },
+  "docs.documentation-site.brand-palette.002": {
+   "file": "docs/specs/documentation-site/brand-palette/docs-look-and-feel.feature",
+   "fingerprint": "433084a194b6",
+   "human": false,
+   "rule": "docs.themes.legible-links-per-scheme",
+   "source": "docs/stylesheets/extra.css#[data-md-color-scheme=\"slate\"]",
+   "status": "inferred",
+   "test": "",
+   "tests": []
+  },
+  "docs.documentation-site.brand-palette.003": {
+   "file": "docs/specs/documentation-site/brand-palette/docs-look-and-feel.feature",
+   "fingerprint": "d1e8fee7d3b2",
+   "human": false,
+   "rule": "docs.typography.system-font-stacks",
+   "source": "docs/stylesheets/extra.css#:root",
+   "status": "inferred",
+   "test": "",
+   "tests": []
+  },
+  "docs.documentation-site.brand-palette.004": {
+   "file": "docs/specs/documentation-site/brand-palette/docs-look-and-feel.feature",
+   "fingerprint": "d1e8fee7d3b2",
+   "human": false,
+   "rule": "docs.offline.no-network-assets",
+   "source": "docs/stylesheets/extra.css#:root",
+   "status": "inferred",
+   "test": "",
+   "tests": []
+  },
+  "docs.documentation-site.brand-palette.005": {
+   "file": "docs/specs/documentation-site/brand-palette/docs-look-and-feel.feature",
+   "fingerprint": "c702704e5aae",
+   "human": false,
+   "rule": "docs.navigation.no-stand-in-logo",
+   "source": "docs/stylesheets/extra.css#.md-header__button.md-logo",
+   "status": "inferred",
+   "test": "",
+   "tests": []
+  }
+ },
+ "taxonomy": {
+  "domains": [
+   {
+    "areas": [
+     {
+      "description": "The single accent colour pair shared by the docs and the splash page so they never drift apart.",
+      "slug": "brand-palette",
+      "title": "Brand palette"
+     },
+     {
+      "description": "Readable link, header and background colours in both the light and the dark (slate) colour schemes.",
+      "slug": "light-dark-themes",
+      "title": "Light and dark themes"
+     },
+     {
+      "description": "Offline system font stacks for body text and code, with heading weight and spacing.",
+      "slug": "typography",
+      "title": "Typography"
+     },
+     {
+      "description": "Header, tabs, sidebar and footer styling that frames every documentation page.",
+      "slug": "site-navigation",
+      "title": "Site navigation"
+     },
+     {
+      "description": "Hero banner, call-to-action buttons, feature cards and logo presenting the product on the landing page.",
+      "slug": "home-page",
+      "title": "Home page"
+     },
+     {
+      "description": "Documentation that loads nothing over the network: no CDN, web fonts or analytics.",
+      "slug": "offline-privacy",
+      "title": "Offline and privacy-safe docs"
+     }
+    ],
+    "description": "The published MkDocs Material site and splash page that explain idle-hunter to users.",
+    "slug": "documentation-site",
+    "title": "Documentation site"
+   },
+   {
+    "areas": [
+     {
+      "description": "Unattached EBS volumes, orphaned snapshots and unused AMIs.",
+      "slug": "storage",
+      "title": "Storage"
+     },
+     {
+      "description": "Unassociated Elastic IPs, detached network interfaces, idle NAT gateways and empty load balancers.",
+      "slug": "networking",
+      "title": "Networking"
+     },
+     {
+      "description": "Idle RDS instances with no meaningful activity.",
+      "slug": "databases",
+      "title": "Databases"
+     }
+    ],
+    "description": "Finding AWS resources that cost money but appear unused.",
+    "slug": "resource-discovery",
+    "title": "Zombie resource discovery"
+   },
+   {
+    "areas": [
+     {
+      "description": "The 0\u2013100 confidence-to-delete score assigned to every finding.",
+      "slug": "confidence-score",
+      "title": "Confidence score"
+     },
+     {
+      "description": "The evidence, such as age, attachment history and activity, that raises or lowers a score.",
+      "slug": "scoring-signals",
+      "title": "Scoring signals"
+     }
+    ],
+    "description": "Rating how safe it is to delete each finding.",
+    "slug": "deletion-confidence",
+    "title": "Deletion confidence"
+   },
+   {
+    "areas": [
+     {
+      "description": "Estimated monthly cost reclaimed by removing each zombie resource.",
+      "slug": "monthly-savings",
+      "title": "Monthly savings"
+     },
+     {
+      "description": "Output formats and summaries of a scan's findings.",
+      "slug": "scan-reports",
+      "title": "Scan reports"
+     }
+    ],
+    "description": "Showing what each finding costs and presenting results to the user.",
+    "slug": "cost-reporting",
+    "title": "Cost and reporting"
+   },
+   {
+    "areas": [
+     {
+      "description": "Installing the package and getting a first scan running.",
+      "slug": "installation",
+      "title": "Installation"
+     },
+     {
+      "description": "Linting, tests, pre-commit hooks and secret scanning that gate changes.",
+      "slug": "quality-gates",
+      "title": "Quality gates"
+     },
+     {
+      "description": "Versioned releases, changelog generation and dependency updates.",
+      "slug": "releases",
+      "title": "Releases and dependencies"
+     },
+     {
+      "description": "Building and publishing the documentation site and its pinned dependencies.",
+      "slug": "docs-build",
+      "title": "Docs build"
+     }
+    ],
+    "description": "Installing, building, testing and releasing idle-hunter.",
+    "slug": "operations",
+    "title": "Operations and developer tooling"
+   }
+  ]
+ }
+}
