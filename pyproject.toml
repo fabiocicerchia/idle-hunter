@@ -19,7 +19,7 @@ classifiers = [
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
 ]
-dependencies = ["boto3>=1.43.103"]
+dependencies = ["boto3>=1.44.2"]
 
 [project.scripts]
 idle-hunter = "idle_hunter:main"
